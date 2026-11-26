@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import express from 'express';
+import express, { type Express } from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
@@ -12,6 +12,17 @@ import {
   Modality,
   type LiveServerMessage,
 } from '@google/genai';
+import {
+  createRateLimiter,
+  securityHeadersMiddleware,
+  validateAudioTranscribeInput,
+  validateBootstrapInput,
+  validateChatInput,
+  validateGroomingImageInput,
+  validateRoadmapInput,
+  validateTriageInput,
+} from './server/security.ts';
+import { sanitizeExternalUrl, sanitizeText } from './src/utils/validation.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,10 +59,16 @@ function formatApiError(err: unknown): { status: number; message: string } {
       message: 'API access denied. Please verify your GEMINI_API_KEY in Settings > Secrets or .env.',
     };
   }
-  if (raw.includes('API_KEY_INVALID') || raw.includes('API key not valid') || raw.includes('400')) {
+  if (raw.includes('API_KEY_INVALID') || raw.includes('API key not valid')) {
     return {
       status: 400,
-      message: `Invalid request or API key: ${raw}`,
+      message: 'The configured GEMINI_API_KEY was rejected. Check Settings > Secrets or .env.',
+    };
+  }
+  if (raw.includes('400')) {
+    return {
+      status: 400,
+      message: 'The request payload could not be processed by the AI model.',
     };
   }
   if (raw.includes('RESOURCE_EXHAUSTED') || raw.includes('429')) {
@@ -60,7 +77,7 @@ function formatApiError(err: unknown): { status: number; message: string } {
       message: 'Rate limit reached. Please wait a moment and try again.',
     };
   }
-  return { status: 500, message: raw || 'Unexpected server error.' };
+  return { status: 500, message: 'Unexpected server error while processing your request.' };
 }
 
 function safeJsonParse<T = Record<string, unknown>>(text: string | undefined): T {
@@ -96,9 +113,14 @@ async function generateContentResilient(
   }
 }
 
-async function startServer() {
+export function createApiApp(): Express {
   const app = express();
+  app.disable('x-powered-by');
+  app.use(securityHeadersMiddleware);
   app.use(express.json({ limit: '15mb' }));
+
+  const aiRateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 45 });
+  app.use('/api/gemini', aiRateLimiter);
 
   app.get('/api/health', (_req, res) => {
     res.json({
@@ -109,8 +131,13 @@ async function startServer() {
 
   // 1. Fast onboarding bootstrap (low-latency gemini-3.1-flash-lite)
   app.post('/api/gemini/bootstrap-plan', async (req, res) => {
+    const validated = validateBootstrapInput(req.body);
+    if (!validated.ok) {
+      res.status(400).json({ error: validated.error });
+      return;
+    }
     try {
-      const { profile } = req.body;
+      const { profile } = validated.data;
       const ai = getAI();
       const contents = `Create a calm, realistic 5-minute-a-day starter routine for this user so they don't feel overwhelmed:
 Name: ${profile.name}
@@ -175,31 +202,35 @@ Wake Time: ${profile.wakeTime}, Sleep Time: ${profile.sleepTime}`;
 
   // 2. Low-latency Idea Validator: Procrastination Trigger vs. Viable Goal-Aligned Concept
   app.post('/api/gemini/triage-idea', async (req, res) => {
+    const validated = validateTriageInput(req.body);
+    if (!validated.ok) {
+      res.status(400).json({ error: validated.error });
+      return;
+    }
     try {
-      const { ideaText, profile, goals, habits, schedule } = req.body;
-      if (!ideaText || !String(ideaText).trim()) {
-        res.status(400).json({ error: 'Please enter or dictate an idea to validate.' });
-        return;
-      }
+      const { ideaText, estimatedContext, profile, goals, habits, schedule } = validated.data;
       const ai = getAI();
-      const goalSummary = Array.isArray(goals) && goals.length > 0
-        ? goals.map((g: { title: string; targetTimeframe?: string }) => `- ${g.title} (${g.targetTimeframe || 'ongoing'})`).join('\n')
-        : `- ${profile?.primaryGoal || 'General personal growth'}`;
-      const habitSummary = Array.isArray(habits) && habits.length > 0
-        ? habits.map((h: { title: string; timeOfDay?: string; durationMin: number }) => `- ${h.title} (${h.timeOfDay || 'Daily'}, ${h.durationMin}m)`).join('\n')
-        : 'None set yet';
-      const scheduleSummary = Array.isArray(schedule) && schedule.length > 0
-        ? schedule.map((s: { time: string; title: string; durationMin: number }) => `- ${s.time}: ${s.title} (${s.durationMin}m)`).join('\n')
-        : 'Open daily schedule';
+      const goalSummary =
+        goals.length > 0
+          ? goals.map((g) => `- ${g.title} (${g.targetTimeframe})`).join('\n')
+          : `- ${profile.primaryGoal || 'General personal growth'}`;
+      const habitSummary =
+        habits.length > 0
+          ? habits.map((h) => `- ${h.title} (${h.timeOfDay}, ${h.durationMin}m)`).join('\n')
+          : 'None set yet';
+      const scheduleSummary =
+        schedule.length > 0
+          ? schedule.map((s) => `- ${s.time}: ${s.title} (${s.durationMin}m)`).join('\n')
+          : 'Open daily schedule';
 
       const contents = `Validate this incoming idea strictly against the user's defined life goals and current daily routine:
-INCOMING IDEA: "${ideaText}"
+INCOMING IDEA: "${ideaText}"${estimatedContext ? `\nUSER TIME / EXECUTION NOTE: "${estimatedContext}"` : ''}
 
 USER PROFILE:
-- Name: ${profile?.name || 'User'}
-- Primary Life Goal: ${profile?.primaryGoal || ''}
-- Interests: ${profile?.interests || ''}
-- Known Procrastination Triggers / Distractions: ${profile?.mainDistractions || ''}
+- Name: ${profile.name}
+- Primary Life Goal: ${profile.primaryGoal}
+- Interests: ${profile.interests}
+- Known Procrastination Triggers / Distractions: ${profile.mainDistractions}
 
 ACTIVE GOALS:
 ${goalSummary}
@@ -269,18 +300,23 @@ ${scheduleSummary}`;
 
   // 3. High-Thinking Goal Roadmap Architect with Google Search Grounding
   app.post('/api/gemini/generate-roadmap', async (req, res) => {
+    const validated = validateRoadmapInput(req.body);
+    if (!validated.ok) {
+      res.status(400).json({ error: validated.error });
+      return;
+    }
     try {
-      const { goalTitle, timeframe, weeklyHoursAvailable, profile } = req.body;
+      const { goalTitle, timeframe, weeklyHoursAvailable, profile } = validated.data;
       const ai = getAI();
 
       const prompt = `Design a structured, practical roadmap for this life goal:
 GOAL: "${goalTitle}"
-TARGET TIMEFRAME: ${timeframe || '3 months'}
-USER AVAILABLE WEEKLY HOURS: ${weeklyHoursAvailable || 7} hours/week
+TARGET TIMEFRAME: ${timeframe}
+USER AVAILABLE WEEKLY HOURS: ${weeklyHoursAvailable} hours/week
 USER CONTEXT:
-- Current Habits: ${profile?.currentHabits || 'Not specified'}
-- Things That Stop Them: ${profile?.mainDistractions || 'Not specified'}
-- Wake/Sleep: ${profile?.wakeTime || '07:00'} to ${profile?.sleepTime || '23:00'}
+- Current Habits: ${profile.currentHabits}
+- Things That Stop Them: ${profile.mainDistractions}
+- Wake/Sleep: ${profile.wakeTime} to ${profile.sleepTime}
 
 Use up-to-date real-world milestones and credible practices via Search if helpful.
 Return ONLY valid JSON matching this structure (no markdown code fences if possible, or clean JSON):
@@ -336,9 +372,13 @@ Return ONLY valid JSON matching this structure (no markdown code fences if possi
       const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
       const groundingSources = chunks
         .map((c) => c.web)
-        .filter((w): w is { uri: string; title?: string } => Boolean(w?.uri))
-        .slice(0, 5)
-        .map((w) => ({ uri: w.uri, title: w.title || w.uri }));
+        .map((w) => {
+          const safeUri = sanitizeExternalUrl(w?.uri);
+          if (!safeUri) return null;
+          return { uri: safeUri, title: sanitizeText(w?.title, 120) || safeUri };
+        })
+        .filter((item): item is { uri: string; title: string } => item !== null)
+        .slice(0, 5);
 
       res.json({ ...parsed, groundingSources });
     } catch (err) {
@@ -348,19 +388,19 @@ Return ONLY valid JSON matching this structure (no markdown code fences if possi
     }
   });
 
-  // 4. Audio Transcription for Dictate Mode (tries gemini-3.5-transcribe on v1beta, falls back to multimodal Gemini Flash Lite / Hydrogen)
+  // 4. Audio Transcription for Dictate Mode
   app.post('/api/gemini/transcribe', async (req, res) => {
+    const validated = validateAudioTranscribeInput(req.body);
+    if (!validated.ok) {
+      res.status(400).json({ error: validated.error });
+      return;
+    }
     try {
-      const { audioBase64, mimeType } = req.body;
-      if (!audioBase64) {
-        res.status(400).json({ error: 'Missing audio data.' });
-        return;
-      }
-      const cleanMime = String(mimeType || 'audio/webm').split(';')[0].trim() || 'audio/webm';
+      const { audioBase64, mimeType } = validated.data;
       const parts = [
         {
           inlineData: {
-            mimeType: cleanMime,
+            mimeType,
             data: audioBase64,
           },
         },
@@ -398,25 +438,26 @@ Return ONLY valid JSON matching this structure (no markdown code fences if possi
     }
   });
 
-  // 5. Camera Grooming & Goal-Aligned Daily Look Advisor (gemini-4-hydrogen multimodal)
+  // 5. Camera Grooming & Goal-Aligned Daily Look Advisor
   app.post('/api/gemini/analyze-grooming', async (req, res) => {
+    const validated = validateGroomingImageInput(req.body);
+    if (!validated.ok) {
+      res.status(400).json({ error: validated.error });
+      return;
+    }
     try {
-      const { imageBase64, mimeType, primaryGoal, occasion } = req.body;
-      if (!imageBase64) {
-        res.status(400).json({ error: 'Missing image data.' });
-        return;
-      }
+      const { imageBase64, mimeType, primaryGoal, occasion } = validated.data;
       const ai = getAI();
       const contents = {
         parts: [
           {
             inlineData: {
-              mimeType: (mimeType || 'image/jpeg').split(';')[0].trim(),
+              mimeType,
               data: imageBase64,
             },
           },
           {
-            text: `Analyze this daily look / grooming check-in for someone whose life goal is: "${primaryGoal || 'Career & personal excellence'}". Today's focus context: "${occasion || 'Daily productive routine'}". Provide respectful, constructive, practical grooming, posture, and attire alignment suggestions.`,
+            text: `Analyze this daily look / grooming check-in for someone whose life goal is: "${primaryGoal}". Today's focus context: "${occasion}". Provide respectful, constructive, practical grooming, posture, and attire alignment suggestions.`,
           },
         ],
       };
@@ -454,21 +495,26 @@ Return ONLY valid JSON matching this structure (no markdown code fences if possi
     }
   });
 
-  // 6. Multi-turn AI Sensei Coach Chat (gemini-4-hydrogen + Google Search grounding)
+  // 6. Multi-turn AI Sensei Coach Chat
   app.post('/api/gemini/chat', async (req, res) => {
+    const validated = validateChatInput(req.body);
+    if (!validated.ok) {
+      res.status(400).json({ error: validated.error });
+      return;
+    }
     try {
-      const { messages, profile, goals, todaySummary } = req.body;
+      const { messages, profile, goals, todaySummary } = validated.data;
       const ai = getAI();
 
       const systemInstruction = `You are Kizashi Sensei, a calm, focused Japanese productivity mentor.
 Keep answers concise, scannable, and practical so the user spends max 5 minutes in the app and the rest of the day executing.
-User: ${profile?.name || 'Friend'}
-Primary Life Goal: ${profile?.primaryGoal || 'Not set'}
-Distractions to guard against: ${profile?.mainDistractions || 'Not set'}
-Active Goals: ${(goals || []).map((g: { title: string }) => g.title).join(', ') || 'None'}
-Today's Progress: ${todaySummary || 'Just getting started'}`;
+User: ${profile.name}
+Primary Life Goal: ${profile.primaryGoal}
+Distractions to guard against: ${profile.mainDistractions}
+Active Goals: ${goals.map((g) => g.title).join(', ') || 'None'}
+Today's Progress: ${todaySummary}`;
 
-      const contents = (messages || []).map((m: { role: string; text: string }) => ({
+      const contents = messages.map((m) => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.text }],
       }));
@@ -495,9 +541,13 @@ Today's Progress: ${todaySummary || 'Just getting started'}`;
       const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
       const sources = chunks
         .map((c) => c.web)
-        .filter((w): w is { uri: string; title?: string } => Boolean(w?.uri))
-        .slice(0, 4)
-        .map((w) => ({ uri: w.uri, title: w.title || w.uri }));
+        .map((w) => {
+          const safeUri = sanitizeExternalUrl(w?.uri);
+          if (!safeUri) return null;
+          return { uri: safeUri, title: sanitizeText(w?.title, 120) || safeUri };
+        })
+        .filter((item): item is { uri: string; title: string } => item !== null)
+        .slice(0, 4);
 
       res.json({ reply: (response.text ?? '').trim(), sources });
     } catch (err) {
@@ -507,12 +557,12 @@ Today's Progress: ${todaySummary || 'Just getting started'}`;
     }
   });
 
-  // 7. Fresh Anime Motivating Quote (low-latency gemini-3.1-flash-lite)
+  // 7. Fresh Anime Motivating Quote
   app.post('/api/gemini/daily-quote', async (req, res) => {
     try {
-      const { goal } = req.body;
+      const goal = sanitizeText((req.body as { goal?: unknown })?.goal, 250) || 'personal mastery';
       const ai = getAI();
-      const quotePrompt = `Share one authentic, uplifting quote from a well-known anime character relevant to discipline, focus, or working toward: "${goal || 'personal mastery'}".`;
+      const quotePrompt = `Share one authentic, uplifting quote from a well-known anime character relevant to discipline, focus, or working toward: "${goal}".`;
       const quoteConfig = {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -537,6 +587,12 @@ Today's Progress: ${todaySummary || 'Just getting started'}`;
     }
   });
 
+  return app;
+}
+
+async function startServer() {
+  const app = createApiApp();
+
   // Vite or Static Dist
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
@@ -558,7 +614,7 @@ Today's Progress: ${todaySummary || 'Just getting started'}`;
   const server = http.createServer(app);
 
   // Live API WebSocket Bridge for Real-Time Voice Coach (gemini-3.8-live)
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024 });
 
   server.on('upgrade', (request, socket, head) => {
     const url = request.url || '';
@@ -613,10 +669,9 @@ Today's Progress: ${todaySummary || 'Just getting started'}`;
               clientWs.send(JSON.stringify({ interrupted: true }));
             }
           },
-          onerror: (e: unknown) => {
+          onerror: () => {
             if (clientWs.readyState === WebSocket.OPEN) {
-              const msg = e instanceof Error ? e.message : 'Live session error';
-              clientWs.send(JSON.stringify({ error: msg }));
+              clientWs.send(JSON.stringify({ error: 'Live voice connection encountered an error.' }));
             }
           },
           onclose: () => {
@@ -638,13 +693,13 @@ Today's Progress: ${todaySummary || 'Just getting started'}`;
     clientWs.on('message', (raw) => {
       if (!session) return;
       try {
-        const msg = JSON.parse(raw.toString());
-        if (msg.audio) {
+        const msg = JSON.parse(raw.toString()) as { audio?: unknown; text?: unknown };
+        if (typeof msg.audio === 'string' && msg.audio.length > 0 && msg.audio.length < 200_000) {
           session.sendRealtimeInput({
             audio: { data: msg.audio, mimeType: 'audio/pcm;rate=16000' },
           });
-        } else if (msg.text) {
-          session.sendRealtimeInput({ text: msg.text });
+        } else if (typeof msg.text === 'string' && msg.text.trim().length > 0) {
+          session.sendRealtimeInput({ text: sanitizeText(msg.text, 1000) });
         }
       } catch {
         // Ignore malformed client message
@@ -665,4 +720,12 @@ Today's Progress: ${todaySummary || 'Just getting started'}`;
   });
 }
 
-startServer();
+// Start server only when executed directly (not when imported by unit/API tests)
+const isDirectRun =
+  typeof process !== 'undefined' &&
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === path.resolve(__filename);
+
+if (isDirectRun) {
+  startServer();
+}

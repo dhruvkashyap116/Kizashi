@@ -132,7 +132,7 @@ export const GroomingPage: React.FC<GroomingPageProps> = ({
         <h1 className="font-display text-2xl sm:text-3xl font-semibold text-[#1C191C] dark:text-white">
           Midasinami — Daily Look & Grooming
         </h1>
-        <p className="mt-1 text-sm text-[#5C5459] dark:text-[#A1A1AA]">
+        <p className="mt-1 text-sm text-[#574F54] dark:text-[#A1A1AA]">
           Carry yourself like the person achieving your goal. Check your daily look privately via camera or photo upload.
         </p>
       </div>
@@ -140,10 +140,14 @@ export const GroomingPage: React.FC<GroomingPageProps> = ({
       <div className="grid lg:grid-cols-12 gap-6">
         <section className="lg:col-span-6 rounded-2xl border border-[#EADFE2] dark:border-[#24242A] bg-white dark:bg-[#09090B] p-6">
           <div className="mb-4">
-            <label className="block text-xs font-medium text-[#5C5459] dark:text-[#A1A1AA] mb-1.5">
+            <label
+              htmlFor="grooming-occasion"
+              className="block text-xs font-medium text-[#574F54] dark:text-[#A1A1AA] mb-1.5"
+            >
               Today’s Context
             </label>
             <select
+              id="grooming-occasion"
               value={occasion}
               onChange={(e) => setOccasion(e.target.value)}
               className="w-full rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-3.5 py-2.5 text-sm text-[#1C191C] dark:text-[#F4F4F5]"
@@ -161,19 +165,20 @@ export const GroomingPage: React.FC<GroomingPageProps> = ({
                 ref={videoRef}
                 playsInline
                 muted
+                aria-label="Live camera preview for grooming check"
                 className="w-full h-full object-cover scale-x-[-1]"
               />
             ) : previewUrl ? (
               <img
                 src={previewUrl}
-                alt="Daily grooming check-in"
+                alt="Captured daily grooming check-in"
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"
               />
             ) : (
               <div className="text-center p-6">
-                <Camera className="w-9 h-9 mx-auto text-[#B4A8AD] dark:text-[#52525B]" />
-                <p className="mt-2 text-xs text-[#6B6368] dark:text-[#A1A1AA]">
+                <Camera className="w-9 h-9 mx-auto text-[#8C8287] dark:text-[#71717A]" aria-hidden="true" />
+                <p className="mt-2 text-xs text-[#574F54] dark:text-[#A1A1AA]">
                   Photos are analyzed once and never stored on a server.
                 </p>
               </div>
@@ -181,7 +186,11 @@ export const GroomingPage: React.FC<GroomingPageProps> = ({
             <canvas ref={canvasRef} className="hidden" />
           </div>
 
-          {error && <p className="mt-3 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+          {error && (
+            <p role="alert" className="mt-3 text-xs text-rose-700 dark:text-rose-400">
+              {error}
+            </p>
+          )}
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {!cameraOn ? (
@@ -190,7 +199,7 @@ export const GroomingPage: React.FC<GroomingPageProps> = ({
                 onClick={startCamera}
                 className="inline-flex items-center gap-2 rounded-xl bg-[#1C191C] dark:bg-[#F4F4F5] px-4 py-2.5 text-xs font-semibold text-white dark:text-black hover:opacity-90 min-h-[42px]"
               >
-                <Camera className="w-4 h-4" />
+                <Camera className="w-4 h-4" aria-hidden="true" />
                 Open Camera
               </button>
             ) : (
@@ -201,7 +210,11 @@ export const GroomingPage: React.FC<GroomingPageProps> = ({
                   disabled={analyzing}
                   className="inline-flex items-center gap-2 rounded-xl bg-[#C94A6A] dark:bg-[#E87A90] px-4 py-2.5 text-xs font-semibold text-white dark:text-black hover:opacity-90 min-h-[42px]"
                 >
-                  {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {analyzing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" aria-hidden="true" />
+                  )}
                   Capture & Get Grooming Tips
                 </button>
                 <button
@@ -209,16 +222,25 @@ export const GroomingPage: React.FC<GroomingPageProps> = ({
                   onClick={stopCamera}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-[#EADFE2] dark:border-[#27272A] px-3.5 py-2.5 text-xs font-medium min-h-[42px]"
                 >
-                  <VideoOff className="w-4 h-4" />
+                  <VideoOff className="w-4 h-4" aria-hidden="true" />
                   Close Camera
                 </button>
               </>
             )}
 
-            <label className="inline-flex items-center gap-2 rounded-xl border border-[#EADFE2] dark:border-[#27272A] px-4 py-2.5 text-xs font-medium cursor-pointer hover:bg-[#FAF2F4] dark:hover:bg-[#141418] min-h-[42px]">
-              <Upload className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90]" />
+            <label
+              htmlFor="grooming-photo-upload"
+              className="inline-flex items-center gap-2 rounded-xl border border-[#EADFE2] dark:border-[#27272A] px-4 py-2.5 text-xs font-medium cursor-pointer hover:bg-[#FAF2F4] dark:hover:bg-[#141418] min-h-[42px] focus-within:ring-2 focus-within:ring-[#C94A6A]"
+            >
+              <Upload className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90]" aria-hidden="true" />
               Upload Photo
-              <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+              <input
+                id="grooming-photo-upload"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleFileUpload}
+                className="sr-only"
+              />
             </label>
           </div>
         </section>
@@ -227,14 +249,18 @@ export const GroomingPage: React.FC<GroomingPageProps> = ({
           <div className="rounded-2xl border border-[#EADFE2] dark:border-[#24242A] bg-white dark:bg-[#09090B] p-6">
             <h2 className="font-display text-lg font-semibold">Goal-Aligned Presentation Feedback</h2>
             {analyzing ? (
-              <div className="py-8 text-center text-sm text-[#6B6368] dark:text-[#A1A1AA]">
-                <Loader2 className="w-6 h-6 mx-auto animate-spin text-[#C94A6A] dark:text-[#E87A90] mb-2" />
+              <div
+                role="status"
+                aria-live="polite"
+                className="py-8 text-center text-sm text-[#574F54] dark:text-[#A1A1AA]"
+              >
+                <Loader2 className="w-6 h-6 mx-auto animate-spin text-[#C94A6A] dark:text-[#E87A90] mb-2" aria-hidden="true" />
                 Reviewing grooming & goal alignment...
               </div>
             ) : latestReport ? (
               <div className="mt-4 space-y-4">
                 <div>
-                  <div className="text-xs text-[#6B6368] dark:text-[#A1A1AA]">
+                  <div className="text-xs text-[#574F54] dark:text-[#A1A1AA]">
                     {latestReport.date} · {latestReport.occasion}
                   </div>
                   <p className="mt-1.5 text-sm text-[#1C191C] dark:text-[#F4F4F5] leading-relaxed">
@@ -245,7 +271,7 @@ export const GroomingPage: React.FC<GroomingPageProps> = ({
                   <div className="text-xs font-semibold text-[#C94A6A] dark:text-[#E87A90]">
                     How This Supports Your Goal
                   </div>
-                  <p className="mt-1 text-sm text-[#5C5459] dark:text-[#D4D4D8] leading-relaxed">
+                  <p className="mt-1 text-sm text-[#574F54] dark:text-[#D4D4D8] leading-relaxed">
                     {latestReport.goalAlignmentTip}
                   </p>
                 </div>
@@ -253,7 +279,7 @@ export const GroomingPage: React.FC<GroomingPageProps> = ({
                   <div className="text-xs font-semibold text-[#1C191C] dark:text-white">
                     2-Minute Refinements
                   </div>
-                  <ul className="mt-2 space-y-1.5 text-sm text-[#5C5459] dark:text-[#A1A1AA]">
+                  <ul className="mt-2 space-y-1.5 text-sm text-[#574F54] dark:text-[#A1A1AA]">
                     {latestReport.quickWins.map((w, idx) => (
                       <li key={idx}>• {w}</li>
                     ))}
@@ -261,7 +287,7 @@ export const GroomingPage: React.FC<GroomingPageProps> = ({
                 </div>
               </div>
             ) : (
-              <p className="mt-3 text-sm text-[#6B6368] dark:text-[#A1A1AA]">
+              <p className="mt-3 text-sm text-[#574F54] dark:text-[#A1A1AA]">
                 Take a quick snapshot or upload a photo to get practical grooming, attire, and posture tips tailored to “{state.profile.primaryGoal}”.
               </p>
             )}
@@ -276,17 +302,18 @@ export const GroomingPage: React.FC<GroomingPageProps> = ({
                   <button
                     key={item}
                     type="button"
+                    aria-pressed={checked}
                     onClick={() => onToggleChecklistItem(item)}
                     className="w-full py-3 flex items-center gap-3 text-left min-h-[44px]"
                   >
                     {checked ? (
-                      <CheckCircle2 className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90] shrink-0" />
+                      <CheckCircle2 className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90] shrink-0" aria-hidden="true" />
                     ) : (
-                      <Circle className="w-4 h-4 text-[#B4A8AD] dark:text-[#52525B] shrink-0" />
+                      <Circle className="w-4 h-4 text-[#8C8287] dark:text-[#71717A] shrink-0" aria-hidden="true" />
                     )}
                     <span
                       className={`text-sm ${
-                        checked ? 'line-through text-[#8C8287] dark:text-[#71717A]' : ''
+                        checked ? 'line-through text-[#6B6368] dark:text-[#A1A1AA]' : ''
                       }`}
                     >
                       {item}

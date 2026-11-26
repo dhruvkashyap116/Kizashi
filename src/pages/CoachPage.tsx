@@ -21,6 +21,7 @@ import type { GroundingSource, KeepNote, KizashiState } from '../types/kizashi';
 import type { CalendarEventItem, GoogleTaskItem } from '../utils/firebaseWorkspace';
 import { buildPortableHtmlApp, formatDateKey } from '../utils/storage';
 import { decodeBase64Pcm24k, pcmFloat32ToBase64 } from '../utils/audioAlarm';
+import { sanitizeExternalUrl } from '../utils/validation';
 
 interface ChatMessage {
   id: string;
@@ -178,28 +179,32 @@ export const CoachPage: React.FC<CoachPageProps> = ({
       };
 
       ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.audio && outputCtxRef.current) {
-          const buf = decodeBase64Pcm24k(msg.audio, outputCtxRef.current);
-          const src = outputCtxRef.current.createBufferSource();
-          src.buffer = buf;
-          src.connect(outputCtxRef.current.destination);
-          const now = outputCtxRef.current.currentTime;
-          const startAt = Math.max(now, nextPlayTimeRef.current);
-          src.start(startAt);
-          nextPlayTimeRef.current = startAt + buf.duration;
-        }
-        if (msg.inputTranscript) {
-          setLiveTranscripts((prev) => [...prev.slice(-8), `You: ${msg.inputTranscript}`]);
-        }
-        if (msg.outputTranscript) {
-          setLiveTranscripts((prev) => [...prev.slice(-8), `Sensei: ${msg.outputTranscript}`]);
-        }
-        if (msg.interrupted && outputCtxRef.current) {
-          nextPlayTimeRef.current = outputCtxRef.current.currentTime;
-        }
-        if (msg.error) {
-          setLiveStatus(`Error: ${msg.error}`);
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.audio && outputCtxRef.current) {
+            const buf = decodeBase64Pcm24k(msg.audio, outputCtxRef.current);
+            const src = outputCtxRef.current.createBufferSource();
+            src.buffer = buf;
+            src.connect(outputCtxRef.current.destination);
+            const now = outputCtxRef.current.currentTime;
+            const startAt = Math.max(now, nextPlayTimeRef.current);
+            src.start(startAt);
+            nextPlayTimeRef.current = startAt + buf.duration;
+          }
+          if (msg.inputTranscript) {
+            setLiveTranscripts((prev) => [...prev.slice(-8), `You: ${msg.inputTranscript}`]);
+          }
+          if (msg.outputTranscript) {
+            setLiveTranscripts((prev) => [...prev.slice(-8), `Sensei: ${msg.outputTranscript}`]);
+          }
+          if (msg.interrupted && outputCtxRef.current) {
+            nextPlayTimeRef.current = outputCtxRef.current.currentTime;
+          }
+          if (msg.error) {
+            setLiveStatus(`Error: ${msg.error}`);
+          }
+        } catch {
+          // Ignore malformed frame
         }
       };
 
@@ -257,7 +262,7 @@ export const CoachPage: React.FC<CoachPageProps> = ({
         <h1 className="font-display text-2xl sm:text-3xl font-semibold text-[#1C191C] dark:text-white">
           Sensei Coach, Workspace Sync & Widget
         </h1>
-        <p className="mt-1 text-sm text-[#5C5459] dark:text-[#A1A1AA]">
+        <p className="mt-1 text-sm text-[#574F54] dark:text-[#A1A1AA]">
           Talk or chat with Kizashi Sensei, sync Google Calendar & Google Tasks, keep quick notes, or launch your standalone widget.
         </p>
       </div>
@@ -275,7 +280,7 @@ export const CoachPage: React.FC<CoachPageProps> = ({
               />
               <div>
                 <h2 className="font-display text-lg font-semibold">Kizashi Sensei</h2>
-                <div className="text-xs text-[#6B6368] dark:text-[#A1A1AA]">
+                <div className="text-xs text-[#574F54] dark:text-[#A1A1AA]" aria-live="polite">
                   Voice: {liveStatus}
                 </div>
               </div>
@@ -283,6 +288,7 @@ export const CoachPage: React.FC<CoachPageProps> = ({
 
             <button
               type="button"
+              aria-pressed={liveConnected}
               onClick={liveConnected ? stopLiveVoice : startLiveVoice}
               className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-colors min-h-[40px] ${
                 liveConnected
@@ -290,70 +296,88 @@ export const CoachPage: React.FC<CoachPageProps> = ({
                   : 'bg-[#1C191C] dark:bg-[#F4F4F5] text-white dark:text-black'
               }`}
             >
-              {liveConnected ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+              {liveConnected ? <MicOff className="w-3.5 h-3.5" aria-hidden="true" /> : <Mic className="w-3.5 h-3.5" aria-hidden="true" />}
               {liveConnected ? 'End Live Voice' : 'Live Voice Call'}
             </button>
           </div>
 
           {liveTranscripts.length > 0 && (
-            <div className="mt-3 rounded-xl border border-[#EADFE2] dark:border-[#24242A] bg-[#FCF8F6] dark:bg-black p-3 text-xs space-y-1">
+            <div
+              aria-live="polite"
+              className="mt-3 rounded-xl border border-[#EADFE2] dark:border-[#24242A] bg-[#FCF8F6] dark:bg-black p-3 text-xs space-y-1"
+            >
               {liveTranscripts.map((line, i) => (
-                <div key={i} className="text-[#5C5459] dark:text-[#D4D4D8]">{line}</div>
+                <div key={i} className="text-[#574F54] dark:text-[#D4D4D8]">{line}</div>
               ))}
             </div>
           )}
 
-          <div className="mt-4 flex-1 max-h-[360px] overflow-y-auto space-y-3 pr-1">
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={`rounded-xl p-3.5 text-sm leading-relaxed ${
-                  m.role === 'user'
-                    ? 'bg-[#FAF2F4] dark:bg-[#141418] text-[#1C191C] dark:text-[#F4F4F5] ml-8'
-                    : 'border border-[#EADFE2] dark:border-[#222228] bg-[#FCF8F6] dark:bg-black text-[#1C191C] dark:text-[#E4E4E7] mr-6'
-                }`}
-              >
-                <div className="whitespace-pre-wrap">{m.text}</div>
-                {m.sources && m.sources.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-[#EADFE2] dark:border-[#222228] flex flex-wrap gap-2 text-xs">
-                    {m.sources.map((s, idx) => (
-                      <a
-                        key={idx}
-                        href={s.uri}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 underline text-[#C94A6A] dark:text-[#E87A90]"
-                      >
-                        {s.title}
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+          <div
+            role="log"
+            aria-label="Conversation with Kizashi Sensei"
+            aria-live="polite"
+            className="mt-4 flex-1 max-h-[360px] overflow-y-auto space-y-3 pr-1"
+          >
+            {messages.map((m) => {
+              const safeSources = (m.sources || [])
+                .map((s) => ({ title: s.title, uri: sanitizeExternalUrl(s.uri) }))
+                .filter((s): s is { title: string; uri: string } => s.uri !== null);
+
+              return (
+                <div
+                  key={m.id}
+                  className={`rounded-xl p-3.5 text-sm leading-relaxed ${
+                    m.role === 'user'
+                      ? 'bg-[#FAF2F4] dark:bg-[#141418] text-[#1C191C] dark:text-[#F4F4F5] ml-8'
+                      : 'border border-[#EADFE2] dark:border-[#222228] bg-[#FCF8F6] dark:bg-black text-[#1C191C] dark:text-[#E4E4E7] mr-6'
+                  }`}
+                >
+                  <div className="whitespace-pre-wrap">{m.text}</div>
+                  {safeSources.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-[#EADFE2] dark:border-[#222228] flex flex-wrap gap-2 text-xs">
+                      {safeSources.map((s, idx) => (
+                        <a
+                          key={idx}
+                          href={s.uri}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 underline text-[#C94A6A] dark:text-[#E87A90]"
+                        >
+                          {s.title}
+                          <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             {chatBusy && (
-              <div className="flex items-center gap-2 text-xs text-[#6B6368] dark:text-[#A1A1AA] py-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <div role="status" className="flex items-center gap-2 text-xs text-[#574F54] dark:text-[#A1A1AA] py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
                 Sensei is thinking...
               </div>
             )}
           </div>
 
           <form onSubmit={handleSendChat} className="mt-4 pt-3 border-t border-[#F2E9EC] dark:border-[#1E1E24] flex gap-2">
+            <label htmlFor="coach-chat-input" className="sr-only">
+              Ask Sensei a question
+            </label>
             <input
+              id="coach-chat-input"
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="Ask Sensei how to structure your next hour..."
-              className="flex-1 rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#C94A6A] dark:focus:border-[#E87A90]"
+              className="flex-1 rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-3.5 py-2.5 text-sm"
             />
             <button
               type="submit"
               disabled={chatBusy || !chatInput.trim()}
               className="inline-flex items-center gap-1.5 rounded-xl bg-[#C94A6A] dark:bg-[#E87A90] px-4 py-2.5 text-sm font-semibold text-white dark:text-black hover:opacity-90 disabled:opacity-50 min-h-[42px]"
             >
-              <Send className="w-4 h-4" />
+              <Send className="w-4 h-4" aria-hidden="true" />
               Send
             </button>
           </form>
@@ -366,7 +390,7 @@ export const CoachPage: React.FC<CoachPageProps> = ({
             <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#F2E9EC] dark:border-[#1E1E24]">
               <div>
                 <h2 className="font-display text-lg font-semibold">Google Calendar & Tasks</h2>
-                <p className="text-xs text-[#6B6368] dark:text-[#A1A1AA]">
+                <p className="text-xs text-[#574F54] dark:text-[#A1A1AA]">
                   {workspaceUser ? `Connected as ${workspaceUser.email}` : 'Sync events and to-dos'}
                 </p>
               </div>
@@ -377,17 +401,17 @@ export const CoachPage: React.FC<CoachPageProps> = ({
                     onClick={onRefreshWorkspace}
                     disabled={workspaceBusy}
                     aria-label="Refresh Workspace"
-                    className="p-2 rounded-lg border border-[#EADFE2] dark:border-[#27272A] hover:bg-[#FAF2F4] dark:hover:bg-[#141418]"
+                    className="p-2 rounded-lg border border-[#EADFE2] dark:border-[#27272A] hover:bg-[#FAF2F4] dark:hover:bg-[#141418] min-w-[38px] min-h-[38px] flex items-center justify-center"
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${workspaceBusy ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-3.5 h-3.5 ${workspaceBusy ? 'animate-spin' : ''}`} aria-hidden="true" />
                   </button>
                   <button
                     type="button"
                     onClick={onGoogleSignOut}
                     aria-label="Sign out of Google"
-                    className="p-2 rounded-lg border border-[#EADFE2] dark:border-[#27272A] hover:bg-[#FAF2F4] dark:hover:bg-[#141418]"
+                    className="p-2 rounded-lg border border-[#EADFE2] dark:border-[#27272A] hover:bg-[#FAF2F4] dark:hover:bg-[#141418] min-w-[38px] min-h-[38px] flex items-center justify-center"
                   >
-                    <LogOut className="w-3.5 h-3.5" />
+                    <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 </div>
               )}
@@ -401,7 +425,7 @@ export const CoachPage: React.FC<CoachPageProps> = ({
                   disabled={workspaceBusy}
                   className="inline-flex items-center gap-3 rounded-lg border border-[#747775] bg-white px-4 py-2.5 text-sm font-medium text-[#1F1F1F] shadow-xs hover:bg-[#F8F9FA] transition-colors min-h-[42px]"
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 48 48">
+                  <svg className="w-4 h-4" viewBox="0 0 48 48" aria-hidden="true">
                     <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
                     <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
                     <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
@@ -410,18 +434,20 @@ export const CoachPage: React.FC<CoachPageProps> = ({
                   Sign in with Google
                 </button>
                 {workspaceError && (
-                  <p className="mt-2.5 text-xs text-rose-600 dark:text-rose-400">{workspaceError}</p>
+                  <p role="alert" className="mt-2.5 text-xs text-rose-700 dark:text-rose-400">
+                    {workspaceError}
+                  </p>
                 )}
               </div>
             ) : (
               <div className="mt-4 space-y-4">
                 <div>
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-[#C94A6A] dark:text-[#E87A90]">
-                    <Calendar className="w-3.5 h-3.5" />
+                    <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
                     Today’s Calendar Events ({calendarEvents.length})
                   </div>
                   {calendarEvents.length === 0 ? (
-                    <p className="mt-1 text-xs text-[#6B6368] dark:text-[#A1A1AA]">
+                    <p className="mt-1 text-xs text-[#574F54] dark:text-[#A1A1AA]">
                       No remaining events on primary calendar today.
                     </p>
                   ) : (
@@ -429,7 +455,7 @@ export const CoachPage: React.FC<CoachPageProps> = ({
                       {calendarEvents.slice(0, 4).map((ev) => (
                         <li key={ev.id} className="flex justify-between gap-2">
                           <span className="truncate">{ev.summary}</span>
-                          <span className="font-mono-num text-[#6B6368] dark:text-[#A1A1AA] shrink-0">
+                          <span className="font-mono-num text-[#574F54] dark:text-[#A1A1AA] shrink-0">
                             {ev.start.includes('T') ? ev.start.slice(11, 16) : 'All day'}
                           </span>
                         </li>
@@ -451,18 +477,23 @@ export const CoachPage: React.FC<CoachPageProps> = ({
                     }}
                     className="flex gap-2 mb-2"
                   >
+                    <label htmlFor="google-task-input" className="sr-only">
+                      New Google Task title
+                    </label>
                     <input
+                      id="google-task-input"
                       type="text"
                       value={newTaskTitle}
                       onChange={(e) => setNewTaskTitle(e.target.value)}
                       placeholder="New Google Task..."
-                      className="flex-1 rounded-lg border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-2.5 py-1.5 text-xs"
+                      className="flex-1 rounded-lg border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-2.5 py-1.5 text-xs min-h-[36px]"
                     />
                     <button
                       type="submit"
-                      className="rounded-lg bg-[#1C191C] dark:bg-[#F4F4F5] px-2.5 py-1.5 text-xs font-semibold text-white dark:text-black"
+                      aria-label="Add Google Task"
+                      className="rounded-lg bg-[#1C191C] dark:bg-[#F4F4F5] px-3 py-1.5 text-xs font-semibold text-white dark:text-black min-h-[36px]"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                     </button>
                   </form>
                   <div className="max-h-36 overflow-y-auto divide-y divide-[#F6EFF2] dark:divide-[#18181B]">
@@ -470,15 +501,16 @@ export const CoachPage: React.FC<CoachPageProps> = ({
                       <button
                         key={t.id}
                         type="button"
+                        aria-pressed={t.status === 'completed'}
                         onClick={() => onRequestToggleTask(t)}
-                        className="w-full py-1.5 flex items-center gap-2 text-left text-xs"
+                        className="w-full py-2 flex items-center gap-2 text-left text-xs min-h-[36px]"
                       >
                         {t.status === 'completed' ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-[#C94A6A] dark:text-[#E87A90] shrink-0" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#C94A6A] dark:text-[#E87A90] shrink-0" aria-hidden="true" />
                         ) : (
-                          <Circle className="w-3.5 h-3.5 text-[#B4A8AD] dark:text-[#52525B] shrink-0" />
+                          <Circle className="w-3.5 h-3.5 text-[#8C8287] dark:text-[#71717A] shrink-0" aria-hidden="true" />
                         )}
-                        <span className={t.status === 'completed' ? 'line-through text-[#8C8287]' : ''}>
+                        <span className={t.status === 'completed' ? 'line-through text-[#6B6368]' : ''}>
                           {t.title}
                         </span>
                       </button>
@@ -492,7 +524,7 @@ export const CoachPage: React.FC<CoachPageProps> = ({
           {/* Portable App & Widget Card */}
           <div className="rounded-2xl border border-[#EADFE2] dark:border-[#24242A] bg-white dark:bg-[#09090B] p-6">
             <h2 className="font-display text-lg font-semibold">Desktop Widget & Portable App</h2>
-            <p className="mt-1 text-xs text-[#6B6368] dark:text-[#A1A1AA] leading-relaxed">
+            <p className="mt-1 text-xs text-[#574F54] dark:text-[#A1A1AA] leading-relaxed">
               Use Kizashi as a compact macOS/Windows widget or download a self-contained single-file HTML companion for your GitHub zip folder.
             </p>
             <div className="mt-4 flex flex-wrap gap-2.5">
@@ -501,7 +533,7 @@ export const CoachPage: React.FC<CoachPageProps> = ({
                 onClick={onOpenWidgetMode}
                 className="inline-flex items-center gap-2 rounded-xl bg-[#1C191C] dark:bg-[#F4F4F5] px-4 py-2 text-xs font-semibold text-white dark:text-black min-h-[40px]"
               >
-                <LayoutGrid className="w-3.5 h-3.5" />
+                <LayoutGrid className="w-3.5 h-3.5" aria-hidden="true" />
                 Open Focus Widget
               </button>
               <button
@@ -509,7 +541,7 @@ export const CoachPage: React.FC<CoachPageProps> = ({
                 onClick={handleDownloadPortableApp}
                 className="inline-flex items-center gap-2 rounded-xl border border-[#EADFE2] dark:border-[#27272A] px-4 py-2 text-xs font-medium hover:bg-[#FAF2F4] dark:hover:bg-[#141418] min-h-[40px]"
               >
-                <Download className="w-3.5 h-3.5 text-[#C94A6A] dark:text-[#E87A90]" />
+                <Download className="w-3.5 h-3.5 text-[#C94A6A] dark:text-[#E87A90]" aria-hidden="true" />
                 Download Portable HTML App
               </button>
             </div>
@@ -521,23 +553,31 @@ export const CoachPage: React.FC<CoachPageProps> = ({
       <section className="rounded-2xl border border-[#EADFE2] dark:border-[#24242A] bg-white dark:bg-[#09090B] p-6">
         <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-[#F2E9EC] dark:border-[#1E1E24]">
           <div className="flex items-center gap-2">
-            <StickyNote className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90]" />
+            <StickyNote className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90]" aria-hidden="true" />
             <h2 className="font-display text-lg font-semibold">Quick Keep Notes</h2>
           </div>
-          <span className="text-xs text-[#6B6368] dark:text-[#A1A1AA]">
+          <span className="text-xs text-[#574F54] dark:text-[#A1A1AA]">
             Saved locally (Enterprise Google Keep API requires domain-wide Workspace admin delegation)
           </span>
         </div>
 
         <form onSubmit={handleAddNote} className="mt-4 grid sm:grid-cols-12 gap-3">
+          <label htmlFor="keep-note-title" className="sr-only">
+            Note title
+          </label>
           <input
+            id="keep-note-title"
             type="text"
             value={noteTitle}
             onChange={(e) => setNoteTitle(e.target.value)}
             placeholder="Note title..."
             className="sm:col-span-3 rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-3 py-2 text-sm"
           />
+          <label htmlFor="keep-note-body" className="sr-only">
+            Note content
+          </label>
           <input
+            id="keep-note-body"
             type="text"
             value={noteBody}
             onChange={(e) => setNoteBody(e.target.value)}
@@ -564,17 +604,17 @@ export const CoachPage: React.FC<CoachPageProps> = ({
                   <button
                     type="button"
                     onClick={() => onDeleteNote(note.id)}
-                    aria-label="Delete note"
-                    className="text-[#8C8287] hover:text-rose-600"
+                    aria-label={`Delete note ${note.title}`}
+                    className="p-1.5 text-[#574F54] dark:text-[#A1A1AA] hover:text-rose-600 min-w-[32px] min-h-[32px] flex items-center justify-center"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 </div>
-                <p className="mt-1 text-xs text-[#5C5459] dark:text-[#A1A1AA] leading-relaxed">
+                <p className="mt-1 text-xs text-[#574F54] dark:text-[#A1A1AA] leading-relaxed">
                   {note.body}
                 </p>
               </div>
-              <div className="text-[11px] font-mono-num text-[#8C8287] dark:text-[#71717A]">
+              <div className="text-[11px] font-mono-num text-[#6B6368] dark:text-[#A1A1AA]">
                 {new Date(note.updatedAt).toLocaleDateString()}
               </div>
             </div>

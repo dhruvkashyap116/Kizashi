@@ -68,3 +68,14 @@ html.dark .washi-sketch-bg {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Accessible keyboard focus indicator across all interactive elements */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #C94A6A;
+  outline-offset: 2px;
+}
+
+html.dark :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #E87A90;
+  outline-offset: 2px;
+}

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kizashi (兆し) — Standalone Focus Companion</title>
+  <style>
+    :root { --bg:#FCF8F6; --card:#FFFFFF; --text:#1C191C; --muted:#574F54; --accent:#C94A6A; --border:#EADFE2; }
+    body.dark { --bg:#000000; --card:#09090B; --text:#F4F4F5; --muted:#A1A1AA; --accent:#E87A90; --border:#24242A; }
+    * { box-sizing:border-box; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+    body { margin:0; background:var(--bg); color:var(--text); padding:24px; max-width:860px; margin-inline:auto; }
+    .top { display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--border); padding-bottom:14px; margin-bottom:20px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px; margin-bottom:16px; }
+    .btn { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:9px 14px; cursor:pointer; font-weight:600; font-size:13px; }
+    body.dark .btn { color:#000; }
+    .row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); gap:12px; }
+    .row:last-child { border-bottom:none; }
+    label { display:flex; align-items:center; gap:10px; cursor:pointer; }
+    .muted { color:var(--muted); font-size:13px; }
+    .form-row { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+    input[type="text"], input[type="time"] { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:13px; }
+    input[type="text"] { flex:1; min-width:180px; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1 style="margin:0;font-size:22px;">Kizashi (兆し) · Offline Companion</h1>
+      <div class="muted" id="quote"></div>
+    </div>
+    <button class="btn" id="themeBtn" type="button">Sumi Black / Sakura</button>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="muted">Today's Habit Checklist (Saved locally in your browser)</div>
+      <div id="habits"></div>
+      <form class="form-row" id="habitForm">
+        <input id="habitInput" type="text" placeholder="Add a daily habit..." aria-label="Add a daily habit" />
+        <button class="btn" type="submit">Add Habit</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="muted">Daily Schedule & Sleep Rhythm</div>
+      <div id="schedule"></div>
+      <form class="form-row" id="blockForm">
+        <input id="blockTime" type="time" value="09:00" aria-label="Block time" />
+        <input id="blockInput" type="text" placeholder="Add schedule block..." aria-label="Add schedule block" />
+        <button class="btn" type="submit">Add Block</button>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    const QUOTES = [
+      '"Knowing what you must do removes fear." — Tanjiro Kamado (Demon Slayer)',
+      '"Push past your limits. Right here, right now." — Yami Sukehiro (Black Clover)',
+      '"The ticket to the future is always open." — Vash the Stampede (Trigun)'
+    ];
+    document.getElementById('quote').textContent = QUOTES[new Date().getDate() % QUOTES.length];
+
+    const THEME_KEY = 'kizashi_standalone_theme';
+    if (localStorage.getItem(THEME_KEY) === 'dark') document.body.classList.add('dark');
+    document.getElementById('themeBtn').onclick = () => {
+      document.body.classList.toggle('dark');
+      localStorage.setItem(THEME_KEY, document.body.classList.contains('dark') ? 'dark' : 'light');
+    };
+
+    const STORE_KEY = 'kizashi_standalone_v1';
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null') || {
+      habits: [
+        { id: '1', title: '5-Min Morning Alignment' },
+        { id: '2', title: '60-Min Deep Focus Block' },
+        { id: '3', title: 'Evening Wind-Down Before Bed' }
+      ],
+      schedule: [
+        { time: '07:00', title: 'Morning Alignment & Grooming' },
+        { time: '08:00', title: 'Primary Goal Focus Block' },
+        { time: '22:30', title: 'Sleep Prep' }
+      ],
+      done: {}
+    };
+
+    function persist() { localStorage.setItem(STORE_KEY, JSON.stringify(saved)); }
+
+    function renderHabits() {
+      const el = document.getElementById('habits');
+      el.textContent = '';
+      const dayDone = saved.done[todayKey] || {};
+      saved.habits.forEach((h) => {
+        const row = document.createElement('div');
+        row.className = 'row';
+        const lbl = document.createElement('label');
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.checked = !!dayDone[h.id];
+        chk.onchange = () => {
+          saved.done[todayKey] = saved.done[todayKey] || {};
+          saved.done[todayKey][h.id] = chk.checked;
+          persist();
+        };
+        const span = document.createElement('span');
+        span.textContent = h.title;
+        lbl.appendChild(chk);
+        lbl.appendChild(span);
+        row.appendChild(lbl);
+        el.appendChild(row);
+      });
+    }
+
+    function renderSchedule() {
+      const el = document.getElementById('schedule');
+      el.textContent = '';
+      saved.schedule.forEach((s) => {
+        const row = document.createElement('div');
+        row.className = 'row';
+        const strong = document.createElement('strong');
+        strong.textContent = s.time + ' — ' + s.title;
+        row.appendChild(strong);
+        el.appendChild(row);
+      });
+    }
+
+    document.getElementById('habitForm').onsubmit = (e) => {
+      e.preventDefault();
+      const input = document.getElementById('habitInput');
+      if (!input.value.trim()) return;
+      saved.habits.push({ id: String(Date.now()), title: input.value.trim() });
+      input.value = '';
+      persist();
+      renderHabits();
+    };
+
+    document.getElementById('blockForm').onsubmit = (e) => {
+      e.preventDefault();
+      const time = document.getElementById('blockTime').value || '09:00';
+      const input = document.getElementById('blockInput');
+      if (!input.value.trim()) return;
+      saved.schedule.push({ time, title: input.value.trim() });
+      saved.schedule.sort((a, b) => a.time.localeCompare(b.time));
+      input.value = '';
+      persist();
+      renderSchedule();
+    };
+
+    renderHabits();
+    renderSchedule();
+  </script>
+</body>
+</html>

@@ -258,7 +258,13 @@ export function buildPortableHtmlApp(state: KizashiState): string {
   DATA.schedule.forEach(s => {
     const div = document.createElement('div');
     div.className = 'row';
-    div.innerHTML = '<strong>' + s.time + ' — ' + s.title + '</strong><span class="muted">' + s.durationMin + 'm</span>';
+    const strong = document.createElement('strong');
+    strong.textContent = String(s.time || '') + ' — ' + String(s.title || '');
+    const dur = document.createElement('span');
+    dur.className = 'muted';
+    dur.textContent = String(s.durationMin || 0) + 'm';
+    div.appendChild(strong);
+    div.appendChild(dur);
     sEl.appendChild(div);
   });
 </script>

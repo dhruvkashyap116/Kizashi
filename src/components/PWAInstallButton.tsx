@@ -1,10 +1,21 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Download, Smartphone, WifiOff } from 'lucide-react';
 import { useOnlineStatus, usePWAInstall } from '../hooks/usePWA';
 
 export const PWAInstallButton: React.FC = () => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showGuide, setShowGuide] = useState(false);
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!showGuide) return;
+    closeBtnRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowGuide(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showGuide]);
 
   if (isInstalled) return null;
 
@@ -15,7 +26,7 @@ export const PWAInstallButton: React.FC = () => {
         onClick={install}
         className="inline-flex items-center gap-2 rounded-lg bg-[#C94A6A] dark:bg-[#E87A90] px-3.5 py-2 text-xs font-semibold text-white dark:text-black hover:opacity-90 transition-opacity whitespace-nowrap shrink-0 min-h-[40px]"
       >
-        <Download className="w-3.5 h-3.5" />
+        <Download className="w-3.5 h-3.5" aria-hidden="true" />
         Install App
       </button>
     );
@@ -26,9 +37,10 @@ export const PWAInstallButton: React.FC = () => {
       <button
         type="button"
         onClick={() => setShowGuide(true)}
+        aria-haspopup="dialog"
         className="inline-flex items-center gap-2 rounded-lg border border-[#E5D7DC] dark:border-[#26262C] bg-white dark:bg-[#0D0D0F] px-3.5 py-2 text-xs font-medium text-[#1C191C] dark:text-[#F4F4F5] hover:bg-[#FAF2F4] dark:hover:bg-[#16161A] transition-colors whitespace-nowrap shrink-0 min-h-[40px]"
       >
-        <Smartphone className="w-3.5 h-3.5 text-[#C94A6A] dark:text-[#E87A90]" />
+        <Smartphone className="w-3.5 h-3.5 text-[#C94A6A] dark:text-[#E87A90]" aria-hidden="true" />
         {isIOS ? 'Add to Home' : 'Install / Widget'}
       </button>
 
@@ -43,15 +55,16 @@ export const PWAInstallButton: React.FC = () => {
             <h3 id="install-guide-title" className="font-display text-xl font-semibold text-[#1C191C] dark:text-white">
               Install Kizashi on Your Device
             </h3>
-            <p className="mt-2 text-sm text-[#5C5459] dark:text-[#A1A1AA] leading-relaxed">
+            <p className="mt-2 text-sm text-[#574F54] dark:text-[#A1A1AA] leading-relaxed">
               {isIOS
                 ? 'In Safari, tap Share at the bottom of the screen, then choose "Add to Home Screen" for instant 1-tap access.'
                 : 'On macOS or Windows (Chrome / Edge), click the Install icon in the browser address bar or menu ("Install Kizashi") to launch it as a standalone desktop window with quick shortcuts.'}
             </p>
-            <div className="mt-4 rounded-xl border border-[#EADFE2] dark:border-[#222228] bg-[#FCF8F6] dark:bg-black p-3.5 text-xs text-[#5C5459] dark:text-[#A1A1AA]">
+            <div className="mt-4 rounded-xl border border-[#EADFE2] dark:border-[#222228] bg-[#FCF8F6] dark:bg-black p-3.5 text-xs text-[#574F54] dark:text-[#A1A1AA]">
               Tip: Pin the Focus Widget link (<span className="font-mono-num">?widget=true</span>) as a compact always-on-top panel or mobile shortcut.
             </div>
             <button
+              ref={closeBtnRef}
               type="button"
               onClick={() => setShowGuide(false)}
               className="mt-5 w-full rounded-xl bg-[#1C191C] dark:bg-[#F4F4F5] py-2.5 text-sm font-semibold text-white dark:text-black hover:opacity-90 transition-opacity min-h-[44px]"
@@ -70,8 +83,12 @@ export const OfflineIndicator: React.FC = () => {
   if (isOnline) return null;
 
   return (
-    <div className="fixed bottom-20 md:bottom-5 left-4 z-50 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-950/90 px-3 py-2 text-xs font-medium text-amber-100 shadow-lg">
-      <WifiOff className="w-3.5 h-3.5" />
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed bottom-20 md:bottom-5 left-4 z-50 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-950/90 px-3 py-2 text-xs font-medium text-amber-100 shadow-lg"
+    >
+      <WifiOff className="w-3.5 h-3.5" aria-hidden="true" />
       <span>Offline mode — local habits and schedule remain saved.</span>
     </div>
   );

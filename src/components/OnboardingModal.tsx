@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Check, Loader2, Sparkles, Sun, Moon } from 'lucide-react';
 import type { Habit, ScheduleBlock, ThemeMode, UserProfile } from '../types/kizashi';
+import { getDailyAnimeQuote, getJapaneseGreeting } from '../data/animeQuotes';
 
 interface OnboardingModalProps {
   open: boolean;
@@ -29,6 +30,28 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   const [form, setForm] = useState<UserProfile>(initialProfile);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const firstInputRef = useRef<HTMLInputElement | null>(null);
+
+  const dailyQuote = useMemo(() => getDailyAnimeQuote(), []);
+  const greeting = useMemo(() => getJapaneseGreeting(form.name), [form.name]);
+
+  useEffect(() => {
+    setForm(initialProfile);
+  }, [initialProfile]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (step === 0) {
+      firstInputRef.current?.focus();
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isEditMode && onClose && !loading) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, step, isEditMode, onClose, loading]);
 
   if (!open) return null;
 
@@ -120,44 +143,47 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               referrerPolicy="no-referrer"
               className="h-full w-full object-cover opacity-90 dark:opacity-75"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent p-5 flex flex-col justify-end text-white">
-              <p className="font-display text-lg font-semibold leading-snug">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-5 flex flex-col justify-end text-white">
+              <p className="text-xs text-white/80">{greeting.jp}</p>
+              <p className="mt-1 font-display text-lg font-semibold leading-snug">
                 5 Minutes to Clarity
               </p>
-              <p className="mt-1 text-xs text-white/80 leading-relaxed">
-                Tell Kizashi what matters to you so every idea and daily habit stays aligned.
-              </p>
+              <blockquote className="mt-2 text-xs text-white/90 italic leading-relaxed">
+                “{dailyQuote.quote}” — {dailyQuote.character} ({dailyQuote.anime})
+              </blockquote>
             </div>
           </div>
 
           <div className="md:col-span-3 p-6 sm:p-7">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono-num text-[#6B6368] dark:text-[#A1A1AA]">
+              <span className="text-xs font-mono-num text-[#574F54] dark:text-[#A1A1AA]">
                 {isEditMode ? 'Edit Profile' : `Step ${step + 1} of 3`}
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2" role="group" aria-label="Theme selection">
                 <button
                   type="button"
+                  aria-pressed={theme === 'light'}
                   onClick={() => onToggleTheme('light')}
-                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors min-h-[36px] ${
                     theme === 'light'
                       ? 'bg-[#C94A6A] text-white'
-                      : 'text-[#6B6368] dark:text-[#A1A1AA] hover:bg-black/5 dark:hover:bg-white/10'
+                      : 'text-[#574F54] dark:text-[#A1A1AA] hover:bg-black/5 dark:hover:bg-white/10'
                   }`}
                 >
-                  <Sun className="w-3.5 h-3.5" />
+                  <Sun className="w-3.5 h-3.5" aria-hidden="true" />
                   Sakura
                 </button>
                 <button
                   type="button"
+                  aria-pressed={theme === 'dark'}
                   onClick={() => onToggleTheme('dark')}
-                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors min-h-[36px] ${
                     theme === 'dark'
                       ? 'bg-[#F4F4F5] text-black'
-                      : 'text-[#6B6368] dark:text-[#A1A1AA] hover:bg-black/5 dark:hover:bg-white/10'
+                      : 'text-[#574F54] dark:text-[#A1A1AA] hover:bg-black/5 dark:hover:bg-white/10'
                   }`}
                 >
-                  <Moon className="w-3.5 h-3.5" />
+                  <Moon className="w-3.5 h-3.5" aria-hidden="true" />
                   Sumi
                 </button>
               </div>
@@ -175,23 +201,32 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             {step === 0 && (
               <div className="mt-5 space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-[#5C5459] dark:text-[#A1A1AA] mb-1.5">
+                  <label
+                    htmlFor="onb-name"
+                    className="block text-xs font-medium text-[#574F54] dark:text-[#A1A1AA] mb-1.5"
+                  >
                     Your Name
                   </label>
                   <input
+                    id="onb-name"
+                    ref={firstInputRef}
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     placeholder="e.g. Dhruv"
-                    className="w-full rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-white dark:bg-black px-3.5 py-2.5 text-sm text-[#1C191C] dark:text-[#F4F4F5] focus:outline-none focus:border-[#C94A6A] dark:focus:border-[#E87A90]"
+                    className="w-full rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-white dark:bg-black px-3.5 py-2.5 text-sm text-[#1C191C] dark:text-[#F4F4F5]"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-[#5C5459] dark:text-[#A1A1AA] mb-1.5">
+                    <label
+                      htmlFor="onb-wake"
+                      className="block text-xs font-medium text-[#574F54] dark:text-[#A1A1AA] mb-1.5"
+                    >
                       Target Wake Time
                     </label>
                     <input
+                      id="onb-wake"
                       type="time"
                       value={form.wakeTime}
                       onChange={(e) => setForm({ ...form, wakeTime: e.target.value })}
@@ -199,10 +234,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-[#5C5459] dark:text-[#A1A1AA] mb-1.5">
+                    <label
+                      htmlFor="onb-sleep"
+                      className="block text-xs font-medium text-[#574F54] dark:text-[#A1A1AA] mb-1.5"
+                    >
                       Target Sleep Time
                     </label>
                     <input
+                      id="onb-sleep"
                       type="time"
                       value={form.sleepTime}
                       onChange={(e) => setForm({ ...form, sleepTime: e.target.value })}
@@ -216,27 +255,35 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             {step === 1 && (
               <div className="mt-5 space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-[#5C5459] dark:text-[#A1A1AA] mb-1.5">
+                  <label
+                    htmlFor="onb-goal"
+                    className="block text-xs font-medium text-[#574F54] dark:text-[#A1A1AA] mb-1.5"
+                  >
                     What do you want to achieve in life right now?
                   </label>
                   <textarea
+                    id="onb-goal"
                     rows={2}
                     value={form.primaryGoal}
                     onChange={(e) => setForm({ ...form, primaryGoal: e.target.value })}
                     placeholder="e.g. Build a software career, stay fit, and ship my own product"
-                    className="w-full rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-white dark:bg-black px-3.5 py-2.5 text-sm text-[#1C191C] dark:text-[#F4F4F5] focus:outline-none focus:border-[#C94A6A] dark:focus:border-[#E87A90]"
+                    className="w-full rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-white dark:bg-black px-3.5 py-2.5 text-sm text-[#1C191C] dark:text-[#F4F4F5]"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-[#5C5459] dark:text-[#A1A1AA] mb-1.5">
+                  <label
+                    htmlFor="onb-interests"
+                    className="block text-xs font-medium text-[#574F54] dark:text-[#A1A1AA] mb-1.5"
+                  >
                     What do you genuinely enjoy & have interest in?
                   </label>
                   <textarea
+                    id="onb-interests"
                     rows={2}
                     value={form.interests}
                     onChange={(e) => setForm({ ...form, interests: e.target.value })}
                     placeholder="e.g. Coding, anime art, strength training, reading"
-                    className="w-full rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-white dark:bg-black px-3.5 py-2.5 text-sm text-[#1C191C] dark:text-[#F4F4F5] focus:outline-none focus:border-[#C94A6A] dark:focus:border-[#E87A90]"
+                    className="w-full rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-white dark:bg-black px-3.5 py-2.5 text-sm text-[#1C191C] dark:text-[#F4F4F5]"
                   />
                 </div>
               </div>
@@ -245,10 +292,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             {step === 2 && (
               <div className="mt-5 space-y-3.5">
                 <div>
-                  <label className="block text-xs font-medium text-[#5C5459] dark:text-[#A1A1AA] mb-1">
+                  <label
+                    htmlFor="onb-habits"
+                    className="block text-xs font-medium text-[#574F54] dark:text-[#A1A1AA] mb-1"
+                  >
                     Habits you already do
                   </label>
                   <input
+                    id="onb-habits"
                     type="text"
                     value={form.currentHabits}
                     onChange={(e) => setForm({ ...form, currentHabits: e.target.value })}
@@ -257,10 +308,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-[#5C5459] dark:text-[#A1A1AA] mb-1">
+                  <label
+                    htmlFor="onb-avoid"
+                    className="block text-xs font-medium text-[#574F54] dark:text-[#A1A1AA] mb-1"
+                  >
                     Things you avoid / don’t do
                   </label>
                   <input
+                    id="onb-avoid"
                     type="text"
                     value={form.thingsAvoided}
                     onChange={(e) => setForm({ ...form, thingsAvoided: e.target.value })}
@@ -269,10 +324,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-[#5C5459] dark:text-[#A1A1AA] mb-1">
+                  <label
+                    htmlFor="onb-distractions"
+                    className="block text-xs font-medium text-[#574F54] dark:text-[#A1A1AA] mb-1"
+                  >
                     What stops you from being productive?
                   </label>
                   <input
+                    id="onb-distractions"
                     type="text"
                     value={form.mainDistractions}
                     onChange={(e) => setForm({ ...form, mainDistractions: e.target.value })}
@@ -284,7 +343,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             )}
 
             {error && (
-              <p className="mt-3 text-xs text-rose-600 dark:text-rose-400">{error}</p>
+              <p role="alert" className="mt-3 text-xs text-rose-700 dark:text-rose-400">
+                {error}
+              </p>
             )}
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-[#EADFE2] dark:border-[#222228]">
@@ -292,7 +353,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setStep(step - 1)}
-                  className="text-xs font-medium text-[#6B6368] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white px-2 py-2"
+                  className="text-xs font-medium text-[#574F54] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white px-3 py-2 min-h-[40px]"
                 >
                   Back
                 </button>
@@ -300,7 +361,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="text-xs font-medium text-[#6B6368] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white px-2 py-2"
+                  className="text-xs font-medium text-[#574F54] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white px-3 py-2 min-h-[40px]"
                 >
                   Cancel
                 </button>
@@ -308,7 +369,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleFinish(false)}
-                  className="text-xs font-medium text-[#6B6368] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white px-2 py-2"
+                  className="text-xs font-medium text-[#574F54] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white px-3 py-2 min-h-[40px]"
                 >
                   Use Starter Profile
                 </button>
@@ -321,7 +382,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   className="inline-flex items-center gap-2 rounded-xl bg-[#1C191C] dark:bg-[#F4F4F5] px-4 py-2.5 text-sm font-semibold text-white dark:text-black hover:opacity-90 transition-opacity min-h-[42px]"
                 >
                   Continue
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4" aria-hidden="true" />
                 </button>
               ) : (
                 <div className="flex items-center gap-2">
@@ -331,7 +392,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                     onClick={() => handleFinish(false)}
                     className="inline-flex items-center gap-1.5 rounded-xl border border-[#EADFE2] dark:border-[#27272A] px-3.5 py-2.5 text-xs font-medium text-[#1C191C] dark:text-[#E4E4E7] hover:bg-[#FAF2F4] dark:hover:bg-[#16161A] min-h-[42px]"
                   >
-                    <Check className="w-3.5 h-3.5" />
+                    <Check className="w-3.5 h-3.5" aria-hidden="true" />
                     Save Only
                   </button>
                   <button
@@ -341,9 +402,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                     className="inline-flex items-center gap-2 rounded-xl bg-[#C94A6A] dark:bg-[#E87A90] px-4 py-2.5 text-sm font-semibold text-white dark:text-black hover:opacity-90 disabled:opacity-50 transition-opacity min-h-[42px]"
                   >
                     {loading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                     ) : (
-                      <Sparkles className="w-4 h-4" />
+                      <Sparkles className="w-4 h-4" aria-hidden="true" />
                     )}
                     {loading ? 'Tailoring...' : 'Generate My Plan'}
                   </button>

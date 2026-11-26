@@ -22,12 +22,15 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
   const nextBlock = state.schedule.find((b) => !b.completed) || state.schedule[0];
 
   return (
-    <div className="min-h-screen bg-[#FCF8F6] dark:bg-black text-[#1C191C] dark:text-[#F4F4F5] p-4 flex items-center justify-center washi-sketch-bg">
-      <div className="w-full max-w-sm rounded-2xl border border-[#EADFE2] dark:border-[#242429] bg-white dark:bg-[#09090B] p-5 shadow-lg">
+    <main className="min-h-screen bg-[#FCF8F6] dark:bg-black text-[#1C191C] dark:text-[#F4F4F5] p-4 flex items-center justify-center washi-sketch-bg">
+      <section
+        aria-label="Kizashi Compact Focus Widget"
+        className="w-full max-w-sm rounded-2xl border border-[#EADFE2] dark:border-[#242429] bg-white dark:bg-[#09090B] p-5 shadow-lg"
+      >
         <div className="flex items-center justify-between pb-3 border-b border-[#EADFE2] dark:border-[#222228]">
           <div>
             <h1 className="font-display text-lg font-semibold">Kizashi Widget</h1>
-            <p className="text-xs text-[#6B6368] dark:text-[#A1A1AA] font-mono-num">
+            <p className="text-xs text-[#574F54] dark:text-[#A1A1AA] font-mono-num">
               {completedCount}/{state.habits.length} habits · Sleep {calculateSleepHours(state.sleep.bedtime, state.sleep.wakeTime)}
             </p>
           </div>
@@ -35,33 +38,34 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
             <button
               type="button"
               onClick={() => onToggleTheme(state.theme === 'dark' ? 'light' : 'dark')}
+              aria-pressed={state.theme === 'dark'}
               aria-label="Toggle theme"
-              className="p-2 rounded-lg border border-[#EADFE2] dark:border-[#27272A] hover:bg-[#FAF2F4] dark:hover:bg-[#16161A]"
+              className="p-2.5 rounded-lg border border-[#EADFE2] dark:border-[#27272A] hover:bg-[#FAF2F4] dark:hover:bg-[#16161A] min-w-[40px] min-h-[40px] flex items-center justify-center"
             >
-              {state.theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {state.theme === 'dark' ? <Sun className="w-4 h-4" aria-hidden="true" /> : <Moon className="w-4 h-4" aria-hidden="true" />}
             </button>
             <button
               type="button"
               onClick={onExitWidget}
               aria-label="Open full planner"
-              className="p-2 rounded-lg border border-[#EADFE2] dark:border-[#27272A] hover:bg-[#FAF2F4] dark:hover:bg-[#16161A]"
+              className="p-2.5 rounded-lg border border-[#EADFE2] dark:border-[#27272A] hover:bg-[#FAF2F4] dark:hover:bg-[#16161A] min-w-[40px] min-h-[40px] flex items-center justify-center"
             >
-              <Maximize2 className="w-4 h-4" />
+              <Maximize2 className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>
 
-        <div className="mt-3 text-xs text-[#6B6368] dark:text-[#A1A1AA]">
+        <div className="mt-3 text-xs text-[#574F54] dark:text-[#A1A1AA]">
           Goal: <span className="text-[#1C191C] dark:text-[#F4F4F5] font-medium">{state.profile.primaryGoal}</span>
         </div>
 
         {nextBlock && (
           <div className="mt-3 rounded-xl border border-[#EADFE2] dark:border-[#222228] bg-[#FCF8F6] dark:bg-black px-3.5 py-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
-              <Clock className="w-3.5 h-3.5 text-[#C94A6A] dark:text-[#E87A90] shrink-0" />
+              <Clock className="w-3.5 h-3.5 text-[#C94A6A] dark:text-[#E87A90] shrink-0" aria-hidden="true" />
               <span className="text-xs font-medium truncate">{nextBlock.title}</span>
             </div>
-            <span className="text-xs font-mono-num text-[#6B6368] dark:text-[#A1A1AA] shrink-0 ml-2">
+            <span className="text-xs font-mono-num text-[#574F54] dark:text-[#A1A1AA] shrink-0 ml-2">
               {nextBlock.time}
             </span>
           </div>
@@ -74,31 +78,33 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
               <button
                 key={h.id}
                 type="button"
+                aria-pressed={done}
+                aria-label={`${h.title}, ${h.durationMin} minutes, ${done ? 'completed' : 'not completed'}`}
                 onClick={() => onToggleHabit(h.id, today)}
                 className="w-full py-2.5 flex items-center justify-between text-left gap-3 hover:opacity-80 transition-opacity min-h-[44px]"
               >
                 <span className="flex items-center gap-2.5 min-w-0">
                   {done ? (
-                    <CheckCircle2 className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90] shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90] shrink-0" aria-hidden="true" />
                   ) : (
-                    <Circle className="w-4 h-4 text-[#A3989D] dark:text-[#52525B] shrink-0" />
+                    <Circle className="w-4 h-4 text-[#8C8287] dark:text-[#71717A] shrink-0" aria-hidden="true" />
                   )}
                   <span
                     className={`text-sm truncate ${
-                      done ? 'line-through text-[#8C8287] dark:text-[#71717A]' : ''
+                      done ? 'line-through text-[#6B6368] dark:text-[#A1A1AA]' : ''
                     }`}
                   >
                     {h.title}
                   </span>
                 </span>
-                <span className="text-xs font-mono-num text-[#6B6368] dark:text-[#A1A1AA] shrink-0">
+                <span className="text-xs font-mono-num text-[#574F54] dark:text-[#A1A1AA] shrink-0">
                   {h.durationMin}m
                 </span>
               </button>
             );
           })}
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 };

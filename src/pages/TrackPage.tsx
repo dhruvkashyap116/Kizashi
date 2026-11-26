@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
   CalendarPlus,
@@ -64,10 +64,21 @@ export const TrackPage: React.FC<TrackPageProps> = ({
   const lastStepPeakRef = useRef<number>(0);
 
   const today = formatDateKey();
-  const weekKeys = getRecentDateKeys(7);
-  const monthStats = computeCompletionStats(30, state.habits, state.habitLogs);
-  const weekStats = computeCompletionStats(7, state.habits, state.habitLogs);
-  const dailyStats = computeCompletionStats(1, state.habits, state.habitLogs);
+  const weekKeys = useMemo(() => getRecentDateKeys(7), []);
+  const monthKeys = useMemo(() => getRecentDateKeys(30), []);
+
+  const monthStats = useMemo(
+    () => computeCompletionStats(30, state.habits, state.habitLogs),
+    [state.habits, state.habitLogs]
+  );
+  const weekStats = useMemo(
+    () => computeCompletionStats(7, state.habits, state.habitLogs),
+    [state.habits, state.habitLogs]
+  );
+  const dailyStats = useMemo(
+    () => computeCompletionStats(1, state.habits, state.habitLogs),
+    [state.habits, state.habitLogs]
+  );
 
   const activeStats =
     period === 'daily' ? dailyStats : period === 'weekly' ? weekStats : monthStats;
@@ -155,22 +166,28 @@ export const TrackPage: React.FC<TrackPageProps> = ({
           <h1 className="font-display text-2xl sm:text-3xl font-semibold text-[#1C191C] dark:text-white">
             Habits, Schedule & Sleep Tracker
           </h1>
-          <p className="mt-1 text-sm text-[#5C5459] dark:text-[#A1A1AA]">
+          <p className="mt-1 text-sm text-[#574F54] dark:text-[#A1A1AA]">
             Track daily, weekly, and monthly consistency, configure sleep alarms, and manage device sensor permissions.
           </p>
         </div>
 
         {/* Daily / Weekly / Monthly Switcher */}
-        <div className="inline-flex items-center gap-1 p-1 rounded-xl border border-[#EADFE2] dark:border-[#24242A] bg-white dark:bg-[#09090B] self-start">
+        <div
+          role="tablist"
+          aria-label="Tracking timeframe"
+          className="inline-flex items-center gap-1 p-1 rounded-xl border border-[#EADFE2] dark:border-[#24242A] bg-white dark:bg-[#09090B] self-start"
+        >
           {(['daily', 'weekly', 'monthly'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
+              role="tab"
+              aria-selected={period === tab}
               onClick={() => setPeriod(tab)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors whitespace-nowrap shrink-0 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors whitespace-nowrap shrink-0 min-h-[36px] ${
                 period === tab
                   ? 'bg-[#1C191C] dark:bg-[#F4F4F5] text-white dark:text-black'
-                  : 'text-[#6B6368] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white'
+                  : 'text-[#574F54] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white'
               }`}
             >
               {tab}
@@ -183,14 +200,14 @@ export const TrackPage: React.FC<TrackPageProps> = ({
       <section className="rounded-2xl border border-[#EADFE2] dark:border-[#24242A] bg-white dark:bg-[#09090B] p-6">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#F2E9EC] dark:border-[#1E1E24]">
           <div>
-            <div className="text-xs text-[#6B6368] dark:text-[#A1A1AA] capitalize">
+            <div className="text-xs text-[#574F54] dark:text-[#A1A1AA] capitalize">
               {period} Consistency Rate
             </div>
             <div className="mt-1 text-3xl font-bold font-mono-num text-[#C94A6A] dark:text-[#E87A90]">
               {activeStats.rate}%
             </div>
           </div>
-          <div className="text-right font-mono-num text-xs text-[#6B6368] dark:text-[#A1A1AA]">
+          <div className="text-right font-mono-num text-xs text-[#574F54] dark:text-[#A1A1AA]">
             <div>
               {activeStats.completed} / {activeStats.total} check-ins completed
             </div>
@@ -200,8 +217,8 @@ export const TrackPage: React.FC<TrackPageProps> = ({
           </div>
         </div>
 
-        {/* Visual Bar Strip (7 days or 30 days) */}
-        <div className="mt-4">
+        {/* Visual Bar Strip */}
+        <div className="mt-4" aria-label={`${period} consistency chart`}>
           <div className="flex items-end gap-1.5 h-20">
             {activeStats.perDay.map((d) => {
               const pct = d.total > 0 ? Math.round((d.count / d.total) * 100) : 0;
@@ -213,7 +230,7 @@ export const TrackPage: React.FC<TrackPageProps> = ({
                     style={{ height: `${Math.max(8, pct)}%` }}
                   />
                   {period !== 'monthly' && (
-                    <span className="text-[10px] font-mono-num text-[#6B6368] dark:text-[#71717A]">
+                    <span className="text-[10px] font-mono-num text-[#574F54] dark:text-[#A1A1AA]">
                       {d.date.slice(5)}
                     </span>
                   )}
@@ -227,107 +244,230 @@ export const TrackPage: React.FC<TrackPageProps> = ({
       {/* Habit Matrix + Add Habit */}
       <section className="rounded-2xl border border-[#EADFE2] dark:border-[#24242A] bg-white dark:bg-[#09090B] p-6">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#F2E9EC] dark:border-[#1E1E24]">
-          <h2 className="font-display text-lg font-semibold">7-Day Habit Matrix</h2>
+          <h2 className="font-display text-lg font-semibold">
+            {period === 'daily'
+              ? 'Today’s Habit Tracker'
+              : period === 'weekly'
+                ? '7-Day Habit Matrix'
+                : '30-Day Monthly Habit Grid'}
+          </h2>
           <form onSubmit={handleAddHabit} className="flex flex-wrap items-center gap-2">
+            <label htmlFor="new-habit-title" className="sr-only">
+              New daily habit title
+            </label>
             <input
+              id="new-habit-title"
               type="text"
               value={newHabitTitle}
               onChange={(e) => setNewHabitTitle(e.target.value)}
               placeholder="New daily habit..."
-              className="rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-3 py-2 text-xs text-[#1C191C] dark:text-[#F4F4F5] min-w-[180px]"
+              className="rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-3 py-2 text-xs text-[#1C191C] dark:text-[#F4F4F5] min-w-[180px] min-h-[38px]"
             />
+            <label htmlFor="new-habit-time" className="sr-only">
+              Habit time of day
+            </label>
             <select
+              id="new-habit-time"
               value={newHabitTime}
               onChange={(e) => setNewHabitTime(e.target.value as 'Morning' | 'Midday' | 'Evening')}
-              className="rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-2.5 py-2 text-xs"
+              className="rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-2.5 py-2 text-xs min-h-[38px]"
             >
               <option value="Morning">Morning</option>
               <option value="Midday">Midday</option>
               <option value="Evening">Evening</option>
             </select>
+            <label htmlFor="new-habit-min" className="sr-only">
+              Habit duration in minutes
+            </label>
             <input
+              id="new-habit-min"
               type="number"
               min={1}
               max={180}
               value={newHabitMin}
               onChange={(e) => setNewHabitMin(Number(e.target.value) || 15)}
-              className="w-16 rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-2 py-2 text-xs font-mono-num"
+              className="w-16 rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-2 py-2 text-xs font-mono-num min-h-[38px]"
             />
             <button
               type="submit"
-              className="inline-flex items-center gap-1 rounded-xl bg-[#1C191C] dark:bg-[#F4F4F5] px-3.5 py-2 text-xs font-semibold text-white dark:text-black min-h-[36px]"
+              className="inline-flex items-center gap-1 rounded-xl bg-[#1C191C] dark:bg-[#F4F4F5] px-3.5 py-2 text-xs font-semibold text-white dark:text-black min-h-[38px]"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               Add
             </button>
           </form>
         </div>
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[560px]">
-            <thead>
-              <tr className="border-b border-[#F2E9EC] dark:border-[#1E1E24] text-xs text-[#6B6368] dark:text-[#A1A1AA]">
-                <th className="py-2 pr-4 font-medium">Habit</th>
-                {weekKeys.map((dk) => (
-                  <th key={dk} className="py-2 px-1 text-center font-mono-num font-medium">
-                    {dk.slice(8)}
+        {period === 'daily' && (
+          <div className="mt-4 divide-y divide-[#F6EFF2] dark:divide-[#18181B]">
+            {state.habits.map((h) => {
+              const done = !!state.habitLogs[today]?.[h.id];
+              const streak = computeHabitStreak(h.id, state.habitLogs);
+              return (
+                <div key={h.id} className="py-3 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    aria-pressed={done}
+                    aria-label={`Toggle ${h.title} for today`}
+                    onClick={() => onToggleHabit(h.id, today)}
+                    className="flex items-center gap-3 text-left flex-1 min-w-0 min-h-[44px]"
+                  >
+                    {done ? (
+                      <CheckCircle2 className="w-5 h-5 text-[#C94A6A] dark:text-[#E87A90] shrink-0" aria-hidden="true" />
+                    ) : (
+                      <Circle className="w-5 h-5 text-[#8C8287] dark:text-[#71717A] shrink-0" aria-hidden="true" />
+                    )}
+                    <div className="min-w-0">
+                      <div className={`text-sm font-medium truncate ${done ? 'line-through text-[#6B6368] dark:text-[#A1A1AA]' : ''}`}>
+                        {h.title}
+                      </div>
+                      <div className="text-xs text-[#574F54] dark:text-[#A1A1AA] font-mono-num">
+                        {h.timeOfDay} · {h.durationMin}m
+                      </div>
+                    </div>
+                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-mono-num font-semibold">{streak}d streak</span>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteHabit(h.id)}
+                      aria-label={`Delete ${h.title}`}
+                      className="p-2 text-[#574F54] dark:text-[#A1A1AA] hover:text-rose-600 dark:hover:text-rose-400 min-w-[38px] min-h-[38px] flex items-center justify-center"
+                    >
+                      <Trash2 className="w-4 h-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {period === 'weekly' && (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[560px]">
+              <caption className="sr-only">7-Day Habit Completion Matrix</caption>
+              <thead>
+                <tr className="border-b border-[#F2E9EC] dark:border-[#1E1E24] text-xs text-[#574F54] dark:text-[#A1A1AA]">
+                  <th scope="col" className="py-2 pr-4 font-medium">Habit</th>
+                  {weekKeys.map((dk) => (
+                    <th key={dk} scope="col" className="py-2 px-1 text-center font-mono-num font-medium">
+                      {dk.slice(8)}
+                    </th>
+                  ))}
+                  <th scope="col" className="py-2 pl-3 text-right font-medium">Streak</th>
+                  <th scope="col" className="py-2 pl-2">
+                    <span className="sr-only">Delete</span>
                   </th>
-                ))}
-                <th className="py-2 pl-3 text-right font-medium">Streak</th>
-                <th className="py-2 pl-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F6EFF2] dark:divide-[#18181B]">
-              {state.habits.map((h) => {
-                const streak = computeHabitStreak(h.id, state.habitLogs);
-                return (
-                  <tr key={h.id} className="hover:bg-[#FCF8F6] dark:hover:bg-[#111114]">
-                    <td className="py-3 pr-4">
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F6EFF2] dark:divide-[#18181B]">
+                {state.habits.map((h) => {
+                  const streak = computeHabitStreak(h.id, state.habitLogs);
+                  return (
+                    <tr key={h.id} className="hover:bg-[#FCF8F6] dark:hover:bg-[#111114]">
+                      <td className="py-3 pr-4">
+                        <div className="text-sm font-medium text-[#1C191C] dark:text-[#F4F4F5]">
+                          {h.title}
+                        </div>
+                        <div className="text-xs text-[#574F54] dark:text-[#A1A1AA] font-mono-num">
+                          {h.timeOfDay} · {h.durationMin}m
+                        </div>
+                      </td>
+                      {weekKeys.map((dk) => {
+                        const done = !!state.habitLogs[dk]?.[h.id];
+                        return (
+                          <td key={dk} className="py-2 px-1 text-center">
+                            <button
+                              type="button"
+                              aria-pressed={done}
+                              onClick={() => onToggleHabit(h.id, dk)}
+                              aria-label={`Toggle ${h.title} for ${dk}`}
+                              className="inline-flex items-center justify-center w-10 h-10 rounded-lg hover:bg-[#FAF2F4] dark:hover:bg-[#1C1C21]"
+                            >
+                              {done ? (
+                                <CheckCircle2 className="w-5 h-5 text-[#C94A6A] dark:text-[#E87A90]" aria-hidden="true" />
+                              ) : (
+                                <Circle className="w-5 h-5 text-[#8C8287] dark:text-[#71717A]" aria-hidden="true" />
+                              )}
+                            </button>
+                          </td>
+                        );
+                      })}
+                      <td className="py-2 pl-3 text-right font-mono-num text-xs font-semibold text-[#1C191C] dark:text-[#F4F4F5]">
+                        {streak}d
+                      </td>
+                      <td className="py-2 pl-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => onDeleteHabit(h.id)}
+                          aria-label={`Delete ${h.title}`}
+                          className="p-2 text-[#574F54] dark:text-[#A1A1AA] hover:text-rose-600 dark:hover:text-rose-400 min-w-[40px] min-h-[40px] inline-flex items-center justify-center"
+                        >
+                          <Trash2 className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {period === 'monthly' && (
+          <div className="mt-4 space-y-5">
+            {state.habits.map((h) => {
+              const completedInMonth = monthKeys.filter((dk) => state.habitLogs[dk]?.[h.id]).length;
+              return (
+                <div
+                  key={h.id}
+                  className="rounded-xl border border-[#F2E9EC] dark:border-[#1E1E24] p-4"
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div>
                       <div className="text-sm font-medium text-[#1C191C] dark:text-[#F4F4F5]">
                         {h.title}
                       </div>
-                      <div className="text-xs text-[#6B6368] dark:text-[#A1A1AA] font-mono-num">
-                        {h.timeOfDay} · {h.durationMin}m
+                      <div className="text-xs text-[#574F54] dark:text-[#A1A1AA] font-mono-num">
+                        {completedInMonth} / 30 days completed
                       </div>
-                    </td>
-                    {weekKeys.map((dk) => {
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteHabit(h.id)}
+                      aria-label={`Delete ${h.title}`}
+                      className="p-2 text-[#574F54] dark:text-[#A1A1AA] hover:text-rose-600 dark:hover:text-rose-400 min-w-[38px] min-h-[38px] flex items-center justify-center"
+                    >
+                      <Trash2 className="w-4 h-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-10 sm:grid-cols-15 gap-1.5">
+                    {monthKeys.map((dk) => {
                       const done = !!state.habitLogs[dk]?.[h.id];
                       return (
-                        <td key={dk} className="py-2 px-1 text-center">
-                          <button
-                            type="button"
-                            onClick={() => onToggleHabit(h.id, dk)}
-                            aria-label={`Toggle ${h.title} for ${dk}`}
-                            className="inline-flex items-center justify-center w-9 h-9 rounded-lg hover:bg-[#FAF2F4] dark:hover:bg-[#1C1C21]"
-                          >
-                            {done ? (
-                              <CheckCircle2 className="w-5 h-5 text-[#C94A6A] dark:text-[#E87A90]" />
-                            ) : (
-                              <Circle className="w-5 h-5 text-[#D1C4C9] dark:text-[#3F3F46]" />
-                            )}
-                          </button>
-                        </td>
+                        <button
+                          key={dk}
+                          type="button"
+                          aria-pressed={done}
+                          aria-label={`${h.title} on ${dk}: ${done ? 'completed' : 'not completed'}`}
+                          onClick={() => onToggleHabit(h.id, dk)}
+                          className={`h-8 rounded-md text-[10px] font-mono-num transition-colors ${
+                            done
+                              ? 'bg-[#C94A6A] dark:bg-[#E87A90] text-white dark:text-black font-semibold'
+                              : 'border border-[#EADFE2] dark:border-[#27272A] text-[#574F54] dark:text-[#A1A1AA] hover:bg-[#FAF2F4] dark:hover:bg-[#141418]'
+                          }`}
+                        >
+                          {dk.slice(8)}
+                        </button>
                       );
                     })}
-                    <td className="py-2 pl-3 text-right font-mono-num text-xs font-semibold text-[#1C191C] dark:text-[#F4F4F5]">
-                      {streak}d
-                    </td>
-                    <td className="py-2 pl-2 text-right">
-                      <button
-                        type="button"
-                        onClick={() => onDeleteHabit(h.id)}
-                        aria-label={`Delete ${h.title}`}
-                        className="p-1.5 text-[#8C8287] hover:text-rose-600 dark:hover:text-rose-400"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* 2-Column Bottom Grid: Daily Schedule + Sleep & Device Sensors */}
@@ -335,30 +475,42 @@ export const TrackPage: React.FC<TrackPageProps> = ({
         <section className="lg:col-span-6 rounded-2xl border border-[#EADFE2] dark:border-[#24242A] bg-white dark:bg-[#09090B] p-6">
           <h2 className="font-display text-lg font-semibold">Daily Schedule Blocks</h2>
           <form onSubmit={handleAddBlock} className="mt-4 flex flex-wrap gap-2">
+            <label htmlFor="new-block-time" className="sr-only">
+              Block start time
+            </label>
             <input
+              id="new-block-time"
               type="time"
               value={newBlockTime}
               onChange={(e) => setNewBlockTime(e.target.value)}
-              className="rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-2.5 py-2 text-xs font-mono-num"
+              className="rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-2.5 py-2 text-xs font-mono-num min-h-[38px]"
             />
+            <label htmlFor="new-block-title" className="sr-only">
+              Schedule block title
+            </label>
             <input
+              id="new-block-title"
               type="text"
               value={newBlockTitle}
               onChange={(e) => setNewBlockTitle(e.target.value)}
               placeholder="Time block title..."
-              className="flex-1 min-w-[140px] rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-3 py-2 text-xs"
+              className="flex-1 min-w-[140px] rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-3 py-2 text-xs min-h-[38px]"
             />
+            <label htmlFor="new-block-min" className="sr-only">
+              Schedule block duration in minutes
+            </label>
             <input
+              id="new-block-min"
               type="number"
               min={5}
               max={240}
               value={newBlockMin}
               onChange={(e) => setNewBlockMin(Number(e.target.value) || 30)}
-              className="w-16 rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-2 py-2 text-xs font-mono-num"
+              className="w-16 rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-2 py-2 text-xs font-mono-num min-h-[38px]"
             />
             <button
               type="submit"
-              className="rounded-xl bg-[#1C191C] dark:bg-[#F4F4F5] px-3.5 py-2 text-xs font-semibold text-white dark:text-black"
+              className="rounded-xl bg-[#1C191C] dark:bg-[#F4F4F5] px-3.5 py-2 text-xs font-semibold text-white dark:text-black min-h-[38px]"
             >
               Add
             </button>
@@ -369,46 +521,48 @@ export const TrackPage: React.FC<TrackPageProps> = ({
               <div key={block.id} className="py-3 flex items-center justify-between gap-3">
                 <button
                   type="button"
+                  aria-pressed={!!block.completed}
                   onClick={() => onToggleScheduleBlock(block.id)}
-                  className="flex items-center gap-3 text-left min-w-0 flex-1"
+                  className="flex items-center gap-3 text-left min-w-0 flex-1 min-h-[40px]"
                 >
                   {block.completed ? (
-                    <CheckCircle2 className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90] shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90] shrink-0" aria-hidden="true" />
                   ) : (
-                    <Circle className="w-4 h-4 text-[#B4A8AD] dark:text-[#52525B] shrink-0" />
+                    <Circle className="w-4 h-4 text-[#8C8287] dark:text-[#71717A] shrink-0" aria-hidden="true" />
                   )}
                   <span className="text-xs font-mono-num text-[#C94A6A] dark:text-[#E87A90] shrink-0">
                     {block.time}
                   </span>
                   <span
                     className={`text-sm truncate ${
-                      block.completed ? 'line-through text-[#8C8287] dark:text-[#71717A]' : ''
+                      block.completed ? 'line-through text-[#6B6368] dark:text-[#A1A1AA]' : ''
                     }`}
                   >
                     {block.title}
                   </span>
                 </button>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-xs font-mono-num text-[#6B6368] dark:text-[#A1A1AA]">
+                  <span className="text-xs font-mono-num text-[#574F54] dark:text-[#A1A1AA]">
                     {block.durationMin}m
                   </span>
                   {workspaceConnected && (
                     <button
                       type="button"
                       onClick={() => onRequestCalendarSync(block)}
+                      aria-label={`Add ${block.title} to Google Calendar`}
                       title="Push to Google Calendar"
-                      className="p-1.5 rounded-lg text-[#5C5459] dark:text-[#A1A1AA] hover:text-[#C94A6A] dark:hover:text-[#E87A90]"
+                      className="p-2 rounded-lg text-[#574F54] dark:text-[#A1A1AA] hover:text-[#C94A6A] dark:hover:text-[#E87A90] min-w-[36px] min-h-[36px] flex items-center justify-center"
                     >
-                      <CalendarPlus className="w-4 h-4" />
+                      <CalendarPlus className="w-4 h-4" aria-hidden="true" />
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={() => onDeleteScheduleBlock(block.id)}
-                    aria-label="Remove block"
-                    className="p-1.5 text-[#8C8287] hover:text-rose-600"
+                    aria-label={`Remove block ${block.title}`}
+                    className="p-2 text-[#574F54] dark:text-[#A1A1AA] hover:text-rose-600 min-w-[36px] min-h-[36px] flex items-center justify-center"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -421,20 +575,24 @@ export const TrackPage: React.FC<TrackPageProps> = ({
           <div className="rounded-2xl border border-[#EADFE2] dark:border-[#24242A] bg-white dark:bg-[#09090B] p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Moon className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90]" />
+                <Moon className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90]" aria-hidden="true" />
                 <h2 className="font-display text-lg font-semibold">Sleep Schedule & Alarm</h2>
               </div>
-              <span className="text-xs font-mono-num text-[#6B6368] dark:text-[#A1A1AA]">
+              <span className="text-xs font-mono-num text-[#574F54] dark:text-[#A1A1AA]">
                 {calculateSleepHours(state.sleep.bedtime, state.sleep.wakeTime)} target
               </span>
             </div>
 
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs text-[#6B6368] dark:text-[#A1A1AA] mb-1">
+                <label
+                  htmlFor="sleep-bedtime"
+                  className="block text-xs text-[#574F54] dark:text-[#A1A1AA] mb-1"
+                >
                   Bedtime
                 </label>
                 <input
+                  id="sleep-bedtime"
                   type="time"
                   value={state.sleep.bedtime}
                   onChange={(e) => onUpdateSleep({ ...state.sleep, bedtime: e.target.value })}
@@ -442,10 +600,14 @@ export const TrackPage: React.FC<TrackPageProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-xs text-[#6B6368] dark:text-[#A1A1AA] mb-1">
+                <label
+                  htmlFor="sleep-wake"
+                  className="block text-xs text-[#574F54] dark:text-[#A1A1AA] mb-1"
+                >
                   Wake Alarm
                 </label>
                 <input
+                  id="sleep-wake"
                   type="time"
                   value={state.sleep.wakeTime}
                   onChange={(e) => onUpdateSleep({ ...state.sleep, wakeTime: e.target.value })}
@@ -453,10 +615,14 @@ export const TrackPage: React.FC<TrackPageProps> = ({
                 />
               </div>
               <div className="col-span-2 sm:col-span-1">
-                <label className="block text-xs text-[#6B6368] dark:text-[#A1A1AA] mb-1">
+                <label
+                  htmlFor="sleep-chime"
+                  className="block text-xs text-[#574F54] dark:text-[#A1A1AA] mb-1"
+                >
                   Chime Tone
                 </label>
                 <select
+                  id="sleep-chime"
                   value={state.sleep.chimeTone}
                   onChange={(e) =>
                     onUpdateSleep({
@@ -476,6 +642,7 @@ export const TrackPage: React.FC<TrackPageProps> = ({
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-[#F2E9EC] dark:border-[#1E1E24]">
               <button
                 type="button"
+                aria-pressed={state.sleep.alarmEnabled}
                 onClick={() => onUpdateSleep({ ...state.sleep, alarmEnabled: !state.sleep.alarmEnabled })}
                 className={`rounded-xl px-4 py-2 text-xs font-semibold transition-colors min-h-[40px] ${
                   state.sleep.alarmEnabled
@@ -490,7 +657,7 @@ export const TrackPage: React.FC<TrackPageProps> = ({
                 onClick={() => playJapaneseChime(state.sleep.chimeTone)}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-[#EADFE2] dark:border-[#27272A] px-3.5 py-2 text-xs font-medium hover:bg-[#FAF2F4] dark:hover:bg-[#141418] min-h-[40px]"
               >
-                <Volume2 className="w-3.5 h-3.5" />
+                <Volume2 className="w-3.5 h-3.5" aria-hidden="true" />
                 Preview Chime
               </button>
             </div>
@@ -502,10 +669,10 @@ export const TrackPage: React.FC<TrackPageProps> = ({
             <div className="mt-4 space-y-3">
               <div className="flex items-center justify-between gap-3 py-2 border-b border-[#F2E9EC] dark:border-[#1E1E24]">
                 <div className="flex items-center gap-2.5">
-                  <Bell className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90]" />
+                  <Bell className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90]" aria-hidden="true" />
                   <div>
                     <div className="text-sm font-medium">Alarm & Habit Notifications</div>
-                    <div className="text-xs text-[#6B6368] dark:text-[#A1A1AA]">
+                    <div className="text-xs text-[#574F54] dark:text-[#A1A1AA]">
                       Status: {notifStatus}
                     </div>
                   </div>
@@ -513,7 +680,7 @@ export const TrackPage: React.FC<TrackPageProps> = ({
                 <button
                   type="button"
                   onClick={requestNotificationPermission}
-                  className="rounded-xl border border-[#EADFE2] dark:border-[#27272A] px-3 py-1.5 text-xs font-medium hover:bg-[#FAF2F4] dark:hover:bg-[#141418] min-h-[36px]"
+                  className="rounded-xl border border-[#EADFE2] dark:border-[#27272A] px-3 py-2 text-xs font-medium hover:bg-[#FAF2F4] dark:hover:bg-[#141418] min-h-[38px]"
                 >
                   {notifStatus === 'granted' ? 'Granted' : 'Allow'}
                 </button>
@@ -521,12 +688,12 @@ export const TrackPage: React.FC<TrackPageProps> = ({
 
               <div className="flex flex-wrap items-center justify-between gap-3 py-2">
                 <div className="flex items-center gap-2.5">
-                  <Footprints className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90]" />
+                  <Footprints className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90]" aria-hidden="true" />
                   <div>
                     <div className="text-sm font-medium">
                       Today’s Steps: <span className="font-mono-num">{todaySteps.toLocaleString()}</span>
                     </div>
-                    <div className="text-xs text-[#6B6368] dark:text-[#A1A1AA]">
+                    <div className="text-xs text-[#574F54] dark:text-[#A1A1AA]">
                       {motionActive ? 'Live motion pedometer active' : 'Accelerometer or quick log'}
                     </div>
                   </div>
@@ -534,22 +701,25 @@ export const TrackPage: React.FC<TrackPageProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                    aria-pressed={motionActive}
                     onClick={enableMotionSensor}
-                    className="rounded-xl border border-[#EADFE2] dark:border-[#27272A] px-3 py-1.5 text-xs font-medium hover:bg-[#FAF2F4] dark:hover:bg-[#141418] min-h-[36px]"
+                    className="rounded-xl border border-[#EADFE2] dark:border-[#27272A] px-3 py-2 text-xs font-medium hover:bg-[#FAF2F4] dark:hover:bg-[#141418] min-h-[38px]"
                   >
                     {motionActive ? 'Sensor On' : 'Enable Motion'}
                   </button>
                   <button
                     type="button"
                     onClick={() => onAddSteps(1000)}
-                    className="rounded-xl bg-[#1C191C] dark:bg-[#F4F4F5] px-3 py-1.5 text-xs font-semibold text-white dark:text-black min-h-[36px]"
+                    className="rounded-xl bg-[#1C191C] dark:bg-[#F4F4F5] px-3 py-2 text-xs font-semibold text-white dark:text-black min-h-[38px]"
                   >
                     +1,000 Steps
                   </button>
                 </div>
               </div>
               {motionError && (
-                <p className="text-xs text-amber-700 dark:text-amber-400">{motionError}</p>
+                <p role="alert" className="text-xs text-amber-800 dark:text-amber-400">
+                  {motionError}
+                </p>
               )}
             </div>
           </div>

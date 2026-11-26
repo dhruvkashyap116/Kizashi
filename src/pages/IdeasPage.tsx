@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Archive,
@@ -34,6 +34,7 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
   onDeleteIdea,
 }) => {
   const [ideaInput, setIdeaInput] = useState('');
+  const [estimatedContext, setEstimatedContext] = useState('');
   const [filter, setFilter] = useState<'all' | 'aligned' | 'procrastination'>('all');
   const [analyzing, setAnalyzing] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -87,6 +88,7 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ideaText: trimmed,
+          estimatedContext: estimatedContext.trim(),
           profile: state.profile,
           goals: state.goals,
           habits: state.habits,
@@ -116,6 +118,7 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
 
       onAddIdea(entry);
       setIdeaInput('');
+      setEstimatedContext('');
       if (entry.verdict === 'procrastination') {
         setFilter('procrastination');
       } else {
@@ -284,11 +287,13 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
     setHabitAddedIds((prev) => ({ ...prev, [item.id]: true }));
   };
 
-  const filteredIdeas = state.ideas.filter((item) => {
-    if (filter === 'aligned') return item.verdict === 'aligned';
-    if (filter === 'procrastination') return item.verdict === 'procrastination' || item.verdict === 'defer';
-    return true;
-  });
+  const filteredIdeas = useMemo(() => {
+    return state.ideas.filter((item) => {
+      if (filter === 'aligned') return item.verdict === 'aligned';
+      if (filter === 'procrastination') return item.verdict === 'procrastination' || item.verdict === 'defer';
+      return true;
+    });
+  }, [state.ideas, filter]);
 
   return (
     <div className="space-y-6 page-enter">
@@ -296,7 +301,7 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
         <h1 className="font-display text-2xl sm:text-3xl font-semibold text-[#1C191C] dark:text-white">
           Idea Validator & Procrastination Filter
         </h1>
-        <p className="mt-1 text-sm text-[#5C5459] dark:text-[#A1A1AA]">
+        <p className="mt-1 text-sm text-[#574F54] dark:text-[#A1A1AA]">
           Analyze any incoming idea against your defined life goals and daily schedule. Viable concepts integrate smoothly; procrastination triggers stay out of your routine.
         </p>
       </div>
@@ -306,11 +311,11 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <label
             htmlFor="idea-textarea"
-            className="text-xs font-medium text-[#5C5459] dark:text-[#A1A1AA]"
+            className="text-xs font-medium text-[#574F54] dark:text-[#A1A1AA]"
           >
             Enter or dictate an idea you want to validate
           </label>
-          <span className="text-xs text-[#6B6368] dark:text-[#71717A]">
+          <span className="text-xs text-[#574F54] dark:text-[#A1A1AA]">
             Goal anchor: {state.profile.primaryGoal}
           </span>
         </div>
@@ -321,16 +326,34 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
           value={ideaInput}
           onChange={(e) => setIdeaInput(e.target.value)}
           placeholder="What do you want to do, how long might it take, or how are you thinking of executing it?"
-          className="w-full rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-4 py-3 text-sm text-[#1C191C] dark:text-[#F4F4F5] placeholder:text-[#9A8F94] dark:placeholder:text-[#52525B] focus:outline-none focus:border-[#C94A6A] dark:focus:border-[#E87A90]"
+          className="w-full rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-4 py-3 text-sm text-[#1C191C] dark:text-[#F4F4F5] placeholder:text-[#766B70] dark:placeholder:text-[#71717A]"
         />
 
+        <div className="mt-3">
+          <label htmlFor="idea-time-context" className="sr-only">
+            Estimated time or execution approach (optional)
+          </label>
+          <input
+            id="idea-time-context"
+            type="text"
+            value={estimatedContext}
+            onChange={(e) => setEstimatedContext(e.target.value)}
+            placeholder="Optional: How much time will it take or how do you plan to do it productively? (e.g. 30 min after work)"
+            className="w-full rounded-xl border border-[#EADFE2] dark:border-[#27272A] bg-[#FCF8F6] dark:bg-black px-4 py-2.5 text-xs text-[#1C191C] dark:text-[#F4F4F5] placeholder:text-[#766B70] dark:placeholder:text-[#71717A]"
+          />
+        </div>
+
         {apiMissingKey && (
-          <p className="mt-2.5 text-xs text-amber-700 dark:text-amber-300">
+          <p role="status" className="mt-2.5 text-xs text-amber-800 dark:text-amber-300">
             AI validation and transcription require GEMINI_API_KEY in your server environment (.env on localhost or Settings &gt; Secrets).
           </p>
         )}
 
-        {error && <p className="mt-2.5 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+        {error && (
+          <p role="alert" className="mt-2.5 text-xs text-rose-700 dark:text-rose-400">
+            {error}
+          </p>
+        )}
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -338,6 +361,7 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
               type="button"
               onClick={toggleDictation}
               disabled={transcribing}
+              aria-pressed={recording}
               className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors min-h-[42px] ${
                 recording
                   ? 'bg-rose-600 text-white'
@@ -345,11 +369,11 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
               }`}
             >
               {transcribing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
               ) : recording ? (
-                <MicOff className="w-4 h-4" />
+                <MicOff className="w-4 h-4" aria-hidden="true" />
               ) : (
-                <Mic className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90]" />
+                <Mic className="w-4 h-4 text-[#C94A6A] dark:text-[#E87A90]" aria-hidden="true" />
               )}
               {transcribing
                 ? 'Transcribing...'
@@ -357,8 +381,12 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
                   ? `Stop & Transcribe (${Math.floor(recordSeconds / 60)}:${String(recordSeconds % 60).padStart(2, '0')})`
                   : 'Dictate Idea'}
             </button>
-            <span className="text-xs text-[#6B6368] dark:text-[#71717A] font-mono-num">
-              {state.habits.length} habits · {state.schedule.length} blocks checked
+            <span className="text-xs text-[#574F54] dark:text-[#A1A1AA] font-mono-num" aria-live="polite">
+              {transcribing
+                ? 'Transcribing spoken idea...'
+                : recording
+                  ? 'Recording audio...'
+                  : `${state.habits.length} habits · ${state.schedule.length} blocks checked`}
             </span>
           </div>
 
@@ -369,9 +397,9 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
             className="inline-flex items-center gap-2 rounded-xl bg-[#C94A6A] dark:bg-[#E87A90] px-5 py-2.5 text-sm font-semibold text-white dark:text-black hover:opacity-90 disabled:opacity-50 transition-opacity min-h-[44px]"
           >
             {analyzing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
             ) : (
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-4 h-4" aria-hidden="true" />
             )}
             {analyzing ? 'Validating...' : 'Validate Idea'}
           </button>
@@ -380,36 +408,46 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
 
       {/* Filter Segmented Control */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="inline-flex items-center gap-1 p-1 rounded-xl border border-[#EADFE2] dark:border-[#24242A] bg-white dark:bg-[#09090B]">
+        <div
+          role="tablist"
+          aria-label="Filter validated ideas"
+          className="inline-flex items-center gap-1 p-1 rounded-xl border border-[#EADFE2] dark:border-[#24242A] bg-white dark:bg-[#09090B]"
+        >
           <button
             type="button"
+            role="tab"
+            aria-selected={filter === 'all'}
             onClick={() => setFilter('all')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 min-h-[36px] ${
               filter === 'all'
                 ? 'bg-[#1C191C] dark:bg-[#F4F4F5] text-white dark:text-black'
-                : 'text-[#6B6368] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white'
+                : 'text-[#574F54] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white'
             }`}
           >
             All ({state.ideas.length})
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={filter === 'aligned'}
             onClick={() => setFilter('aligned')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 min-h-[36px] ${
               filter === 'aligned'
                 ? 'bg-[#1C191C] dark:bg-[#F4F4F5] text-white dark:text-black'
-                : 'text-[#6B6368] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white'
+                : 'text-[#574F54] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white'
             }`}
           >
             Viable & Aligned ({state.ideas.filter((i) => i.verdict === 'aligned').length})
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={filter === 'procrastination'}
             onClick={() => setFilter('procrastination')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 min-h-[36px] ${
               filter === 'procrastination'
                 ? 'bg-[#1C191C] dark:bg-[#F4F4F5] text-white dark:text-black'
-                : 'text-[#6B6368] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white'
+                : 'text-[#574F54] dark:text-[#A1A1AA] hover:text-[#1C191C] dark:hover:text-white'
             }`}
           >
             Procrastination Vault ({state.ideas.filter((i) => i.verdict !== 'aligned').length})
@@ -420,9 +458,9 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
       {/* Validation Results */}
       {filteredIdeas.length === 0 ? (
         <div className="rounded-2xl border border-[#EADFE2] dark:border-[#24242A] bg-white dark:bg-[#09090B] p-10 text-center">
-          <Archive className="w-8 h-8 mx-auto text-[#B4A8AD] dark:text-[#52525B]" />
-          <h3 className="mt-3 font-display text-lg font-semibold">No validated ideas yet</h3>
-          <p className="mt-1 text-sm text-[#6B6368] dark:text-[#A1A1AA]">
+          <Archive className="w-8 h-8 mx-auto text-[#8C8287] dark:text-[#71717A]" aria-hidden="true" />
+          <h2 className="mt-3 font-display text-lg font-semibold">No validated ideas yet</h2>
+          <p className="mt-1 text-sm text-[#574F54] dark:text-[#A1A1AA]">
             Test a new idea above to see whether it aligns with your life goals or acts as a distraction.
           </p>
         </div>
@@ -438,7 +476,7 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-[#6B6368] dark:text-[#A1A1AA]">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-[#574F54] dark:text-[#A1A1AA]">
                       <span
                         className={`inline-flex items-center gap-1 font-semibold ${
                           isAligned
@@ -447,9 +485,9 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
                         }`}
                       >
                         {isAligned ? (
-                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
                         ) : (
-                          <AlertTriangle className="w-3.5 h-3.5" />
+                          <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
                         )}
                         {item.verdict === 'aligned'
                           ? 'Viable Goal-Aligned Concept'
@@ -461,16 +499,16 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
                       <span className="font-mono-num">{item.alignmentScore}% goal fit</span>
                       <span aria-hidden="true">·</span>
                       <span className="font-mono-num">
-                        <Clock className="w-3 h-3 inline mr-1" />
+                        <Clock className="w-3 h-3 inline mr-1" aria-hidden="true" />
                         {item.estimatedMinutes}m
                       </span>
                       <span aria-hidden="true">·</span>
                       <span>{item.bestTimeSlot}</span>
                     </div>
-                    <h3 className="mt-2 font-display text-lg font-semibold text-[#1C191C] dark:text-white">
+                    <h2 className="mt-2 font-display text-lg font-semibold text-[#1C191C] dark:text-white">
                       {item.headline}
-                    </h3>
-                    <p className="mt-1 text-sm text-[#5C5459] dark:text-[#D4D4D8]">
+                    </h2>
+                    <p className="mt-1 text-sm text-[#574F54] dark:text-[#D4D4D8]">
                       Input: “{item.text}”
                     </p>
                   </div>
@@ -478,10 +516,10 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
                   <button
                     type="button"
                     onClick={() => onDeleteIdea(item.id)}
-                    aria-label="Remove idea"
-                    className="p-2 rounded-lg text-[#8C8287] hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
+                    aria-label={`Remove idea ${item.headline}`}
+                    className="p-2.5 rounded-lg text-[#574F54] dark:text-[#A1A1AA] hover:text-rose-600 dark:hover:text-rose-400 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </div>
 
@@ -490,13 +528,13 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
                     <div className="text-xs font-semibold text-[#1C191C] dark:text-[#F4F4F5]">
                       Goal & Routine Analysis
                     </div>
-                    <p className="mt-1 text-sm text-[#5C5459] dark:text-[#A1A1AA] leading-relaxed">
+                    <p className="mt-1 text-sm text-[#574F54] dark:text-[#A1A1AA] leading-relaxed">
                       {item.reasoning}
                     </p>
                     <div className="mt-3 text-xs font-semibold text-[#1C191C] dark:text-[#F4F4F5]">
                       {isAligned ? 'How to Integrate Productively' : 'Routine Protection Advice'}
                     </div>
-                    <p className="mt-1 text-sm text-[#5C5459] dark:text-[#A1A1AA] leading-relaxed">
+                    <p className="mt-1 text-sm text-[#574F54] dark:text-[#A1A1AA] leading-relaxed">
                       {item.routineAdvice}
                     </p>
                   </div>
@@ -505,7 +543,7 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
                     <div className="text-xs font-semibold text-[#1C191C] dark:text-[#F4F4F5]">
                       {isAligned ? 'Productive Execution Steps' : 'Better Next Move'}
                     </div>
-                    <ul className="mt-2 space-y-1.5 text-sm text-[#5C5459] dark:text-[#A1A1AA]">
+                    <ul className="mt-2 space-y-1.5 text-sm text-[#574F54] dark:text-[#A1A1AA]">
                       {item.actionSteps.map((step, idx) => (
                         <li key={idx} className="flex items-start gap-2">
                           <span className="font-mono-num text-xs text-[#C94A6A] dark:text-[#E87A90] mt-0.5">
@@ -526,12 +564,12 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
                         >
                           {item.addedToSchedule ? (
                             <>
-                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
                               Scheduled
                             </>
                           ) : (
                             <>
-                              <CalendarPlus className="w-3.5 h-3.5" />
+                              <CalendarPlus className="w-3.5 h-3.5" aria-hidden="true" />
                               Add to Daily Schedule ({item.estimatedMinutes}m)
                             </>
                           )}
@@ -544,8 +582,17 @@ export const IdeasPage: React.FC<IdeasPageProps> = ({
                             onClick={() => handleAddAsHabit(item)}
                             className="inline-flex items-center gap-1.5 rounded-xl border border-[#EADFE2] dark:border-[#27272A] px-3.5 py-2 text-xs font-medium hover:bg-[#FAF2F4] dark:hover:bg-[#141418] disabled:opacity-50 min-h-[40px]"
                           >
-                            <Plus className="w-3.5 h-3.5 text-[#C94A6A] dark:text-[#E87A90]" />
-                            {habitAdded ? 'Added to Habits' : 'Add as Daily Habit'}
+                            {habitAdded ? (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                                Added to Habits
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3.5 h-3.5 text-[#C94A6A] dark:text-[#E87A90]" aria-hidden="true" />
+                                Add as Daily Habit
+                              </>
+                            )}
                           </button>
                         )}
                       </div>

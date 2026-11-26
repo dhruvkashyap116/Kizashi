@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -21,6 +21,20 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const cancelBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    cancelBtnRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !busy) {
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, busy, onCancel]);
+
   if (!open) return null;
 
   return (
@@ -29,16 +43,18 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
+      aria-describedby="confirm-dialog-desc"
     >
       <div className="w-full max-w-md rounded-2xl border border-[#EADFE2] dark:border-[#26262C] bg-white dark:bg-[#0A0A0C] p-6 shadow-xl">
         <h3 id="confirm-dialog-title" className="font-display text-lg font-semibold text-[#1C191C] dark:text-[#F4F4F5]">
           {title}
         </h3>
-        <p className="mt-2 text-sm text-[#5C5459] dark:text-[#A1A1AA] leading-relaxed">
+        <p id="confirm-dialog-desc" className="mt-2 text-sm text-[#574F54] dark:text-[#A1A1AA] leading-relaxed">
           {description}
         </p>
         <div className="mt-6 flex items-center justify-end gap-3">
           <button
+            ref={cancelBtnRef}
             type="button"
             disabled={busy}
             onClick={onCancel}
