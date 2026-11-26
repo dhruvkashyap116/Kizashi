@@ -1,0 +1,6 @@
+{
+  "name": "Kizashi",
+  "description": "Japanese-inspired daily productivity, habit tracking, anti-procrastination triage, goal roadmaps, sleep schedule, and grooming coach.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
